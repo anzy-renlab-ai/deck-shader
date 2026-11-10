@@ -87,8 +87,14 @@ It ships with a `SKILL.md`, so Claude Code, WorkBuddy, or any host that reads sk
 ## Quickstart
 
 ```bash
-git clone https://github.com/anzy-renlab-ai/deck-shader
-cd deck-shader
+pip install git+https://github.com/anzy-renlab-ai/deck-shader
+deck-shader deck.json --out out/deck.pptx
+```
+
+Or from a checkout:
+
+```bash
+git clone https://github.com/anzy-renlab-ai/deck-shader && cd deck-shader
 pip install python-pptx
 python3 scripts/render.py examples/hello/deck.json --out out/hello.pptx
 ```

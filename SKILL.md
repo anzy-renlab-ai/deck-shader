@@ -59,7 +59,8 @@ deck.json ──► WebGL (headless Chrome) ──► background.png ──► .
 2. Render:
 
 ```bash
-python3 scripts/render.py deck.json --out out/deck.pptx
+deck-shader deck.json --out out/deck.pptx      # pip install git+https://github.com/anzy-renlab-ai/deck-shader
+python3 scripts/render.py deck.json            # 或者直接用仓库里的脚本
 ```
 
 3. Open the pptx. Background is a rendered image; **every text box is native** — edit it in PowerPoint like any other deck.

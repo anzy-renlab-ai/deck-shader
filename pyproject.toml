@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deck-shader"
+version = "0.1.0"
+description = "Decks whose light is computed, not painted — WebGL shader backgrounds exported to editable .pptx"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "anzy-renlab-ai" }]
+keywords = ["pptx", "webgl", "shader", "slides", "presentation", "python-pptx"]
+dependencies = ["python-pptx>=0.6.21"]
+
+[project.urls]
+Homepage = "https://github.com/anzy-renlab-ai/deck-shader"
+Repository = "https://github.com/anzy-renlab-ai/deck-shader"
+Demo = "https://anzy-renlab-ai.github.io/deck-shader/"
+
+[project.scripts]
+deck-shader = "deck_shader.cli:main"
+
+[tool.setuptools]
+packages = ["deck_shader"]
+
+[tool.setuptools.package-data]
+deck_shader = ["template.html", "presets/*.json"]
