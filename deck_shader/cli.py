@@ -17,13 +17,39 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-CHROME = os.environ.get("CHROME") or next((p for p in [
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser",
-] if os.path.exists(p)), None)
+try:
+    from . import __version__
+except ImportError:                        # 直接 python deck_shader/cli.py 跑
+    __version__ = "0.2.0"
+
+def _find_chrome():
+    if os.environ.get("CHROME"):
+        return os.environ["CHROME"]
+    fixed = [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser",
+        "/snap/bin/chromium",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ]
+    local = os.environ.get("LOCALAPPDATA")
+    if local:                                    # Windows：装在用户目录下也要认
+        fixed.append(os.path.join(local, "Google", "Chrome", "Application", "chrome.exe"))
+    for p in fixed:
+        if os.path.exists(p):
+            return p
+    for name in ("google-chrome", "chrome", "chromium", "chromium-browser"):
+        p = shutil.which(name)
+        if p:
+            return p
+    return None
+
+
+CHROME = _find_chrome()
 
 CW, CH = 1280, 720          # 设计画布
 SW, SH = 1920, 1080         # shader 渲染尺寸 = 画布 ×1.5
@@ -38,7 +64,48 @@ def px_pt(v):  return v * 72.0 / DPI
 
 # ---------------------------------------------------------------- 背景渲染
 
-def render_bg(cfg, out_png):
+def _screenshot(html_path, out, size=(SW, SH)):
+    try:
+        subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--use-gl=angle",
+                        "--use-angle=swiftshader", f"--screenshot={out}",
+                        f"--window-size={size[0]},{size[1]}", "--virtual-time-budget=2500",
+                        Path(html_path).resolve().as_uri()], check=True, timeout=90,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    except subprocess.TimeoutExpired:
+        _die("Chrome 90 秒没渲完，可能是 CHROME 指向的不是 Chrome/Chromium")
+    except subprocess.CalledProcessError as e:
+        tail = (e.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-6:]
+        _die("Chrome 渲染失败：\n  " + "\n  ".join(tail))
+    if not Path(out).exists():
+        _die(f"Chrome 没有写出 {out}")
+
+
+def _looks_blank(path):
+    """WebGL 挂了的话多半是一张纯色图——这种情况要报错，不能悄悄交出去。"""
+    try:
+        from PIL import Image, ImageStat
+    except ImportError:
+        return False
+    with Image.open(path) as im:
+        return sum(ImageStat.Stat(im.convert("L")).stddev) < 0.5
+
+
+def _to_jpeg(src_png, out_jpg, quality):
+    """PNG 很贵：1920×1080 的暗部渐变一张 1.7 MB，转 JPEG 只要 ~160 KB。
+
+    没有 Pillow 就退回到让 Chrome 直接写 .jpg（画质固定，但不用装东西）。
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    im = Image.open(src_png).convert("RGB")
+    # subsampling=0：暗部大面积渐变，色度抽样会在光束边缘留绿边
+    im.save(out_jpg, "JPEG", quality=quality, subsampling=0, optimize=True)
+    return out_jpg
+
+
+def render_bg(cfg, out_img, quality=92):
     """cfg = {preset, time}；只画 shader，不带任何文字。"""
     if not CHROME:
         sys.exit("找不到 Chrome，请设置 CHROME=/path/to/chrome")
@@ -50,17 +117,22 @@ def render_bg(cfg, out_png):
             cfg[k] = cfg[k] * SCALE
     html = tpl.replace("__CFG__", json.dumps(cfg, ensure_ascii=False))
     tmpdir = Path(tempfile.mkdtemp())
-    tmp = tmpdir / "s.html"
-    tmp.write_text(html, encoding="utf-8")
+    tmp_html = tmpdir / "s.html"
+    tmp_html.write_text(html, encoding="utf-8")
+    want_jpeg = out_img.lower().endswith((".jpg", ".jpeg"))
     try:
-        subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--use-gl=angle",
-                        "--use-angle=swiftshader", f"--screenshot={out_png}",
-                        f"--window-size={SW},{SH}", "--virtual-time-budget=2500",
-                        f"file://{tmp}"], check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if not want_jpeg:
+            _screenshot(tmp_html, out_img)
+            return out_img
+        tmp_png = tmpdir / "shot.png"
+        _screenshot(tmp_html, tmp_png)
+        if _looks_blank(tmp_png):
+            _die("背景是一张纯色图——WebGL 没跑起来，试试换一台机器或加 --use-angle=metal")
+        if _to_jpeg(tmp_png, out_img, quality) is None:
+            _screenshot(tmp_html, out_img)     # 没有 Pillow：交给 Chrome 写 JPEG
+        return out_img
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
-    return out_png
 
 
 # ---------------------------------------------------------------- 元素绘制
@@ -161,34 +233,70 @@ def _add_image(slide, el, base):
     src = Path(el["src"])
     if not src.is_absolute():
         src = Path(base) / src
+    if not src.exists():
+        _die(f"图片不存在：{src}（image 元素的 src 是相对 deck.json 的路径）")
     slide.shapes.add_picture(str(src), Inches(px_in(el["x"])), Inches(px_in(el["y"])),
                              Inches(px_in(el["w"])), Inches(px_in(el["h"])))
 
 
 # ---------------------------------------------------------------- 组装
 
-def _legacy(slide):
-    """老的 title/titleTop 写法 -> elements。"""
+def _legacy(slide, style=None):
+    """老的 title/titleTop 写法 -> elements。style 里的字体和颜色在这里生效。"""
+    st = style or {}
+    font = st.get("font", "Songti SC")
     out = []
     if slide.get("kicker"):
         out.append({"type": "text", "x": 72, "y": 44, "w": 700, "text": slide["kicker"],
-                    "sizePt": 10, "color": "#8FA3B8", "font": "Menlo", "spc": 0.42})
+                    "sizePt": 10, "color": st.get("kickerColor", "#8FA3B8"),
+                    "font": "Menlo", "spc": 0.42})
     if slide.get("title"):
         out.append({"type": "text", "x": 72, "y": slide.get("titleTop", 300),
                     "w": 1136, "text": slide["title"], "sizePt": 66,
-                    "color": "#FFFFFF", "font": "Songti SC", "bold": True})
+                    "color": st.get("titleColor", "#FFFFFF"), "font": font, "bold": True})
     if slide.get("sub"):
         out.append({"type": "text", "x": 74, "y": slide.get("subTop", (slide.get("titleTop", 300)) + 110),
                     "w": 1136, "text": slide["sub"], "sizePt": 19,
-                    "color": "#E8C9A8", "font": "PingFang SC"})
+                    "color": st.get("subColor", "#E8C9A8"),
+                    "font": st.get("subFont", "PingFang SC")})
     if slide.get("body"):
         out.append({"type": "text", "x": 72, "y": slide.get("bodyTop", 520),
                     "w": 640, "text": slide["body"], "sizePt": 20,
-                    "color": "#EDE3D6", "font": "PingFang SC"})
+                    "color": st.get("bodyColor", "#EDE3D6"),
+                    "font": st.get("subFont", "PingFang SC")})
     return out
 
 
-def build_pptx(deck, out, only=None):
+def _jobs():
+    return max(1, min(4, os.cpu_count() or 1))
+
+
+def _die(msg):
+    sys.exit(f"deck-shader: {msg}")
+
+
+def render_backgrounds(deck, out, only=None, ext=".jpg", quality=92):
+    """把所有需要的背景渲完（可并行），返回 {slide_index: path}。"""
+    stem = str(Path(out).with_suffix(""))
+    todo = [(i, s) for i, s in enumerate(deck["slides"])
+            if (not only or (i + 1) in only) and not s.get("background")]
+    if not todo:
+        return {}
+    paths = {}
+    with ThreadPoolExecutor(max_workers=_jobs()) as pool:
+        futs = {}
+        for i, s in todo:
+            cfg = {"preset": s.get("preset") or deck.get("preset"),
+                   "time": s.get("time", i * 1.7)}
+            p = f"{stem}_bg{i}{ext}"
+            paths[i] = p
+            futs[pool.submit(render_bg, cfg, p, quality)] = i
+        for f, i in futs.items():
+            f.result()          # 出错就在这里炸，别等到组装 pptx
+    return paths
+
+
+def build_pptx(deck, out, only=None, ext=".jpg", quality=92):
     from pptx import Presentation
     from pptx.util import Inches
 
@@ -197,18 +305,11 @@ def build_pptx(deck, out, only=None):
     prs.slide_height = Inches(SLIDE_H_IN)
     blank = prs.slide_layouts[6]
     base = deck.get("_base", ".")
-    pngs = []
+    bgs = render_backgrounds(deck, out, only, ext, quality)
 
     for i, s in enumerate(deck["slides"]):
         if only and (i + 1) not in only:
             continue
-        png = str(Path(out).with_suffix("")) + f"_bg{i}.png"
-        if not s.get("background"):
-            cfg = {"preset": s.get("preset") or deck.get("preset"),
-                   "time": s.get("time", i * 1.7)}
-            render_bg(cfg, png)
-            pngs.append(png)
-
         slide = prs.slides.add_slide(blank)
         bg = s.get("background")
         if bg and bg.startswith("#"):
@@ -223,10 +324,11 @@ def build_pptx(deck, out, only=None):
             slide.shapes.add_picture(str(p), 0, 0,
                                      width=prs.slide_width, height=prs.slide_height)
         else:
-            slide.shapes.add_picture(png, 0, 0,
+            slide.shapes.add_picture(bgs[i], 0, 0,
                                      width=prs.slide_width, height=prs.slide_height)
 
-        for el in (s.get("elements") or _legacy(s)):
+        els = s.get("elements") or _legacy(s, deck.get("style"))
+        for el in els:
             kind = el.get("type")
             if kind == "text":
                 _add_text(slide, el)
@@ -241,42 +343,109 @@ def build_pptx(deck, out, only=None):
             slide.notes_slide.notes_text_frame.text = s["notes"]
 
     prs.save(out)
-    return pngs
+    return list(bgs.values())
+
+
+def _validate(deck, name):
+    """写错的坐标不该等到 pptx 打开才发现——这里一次性说清楚是哪一页哪个元素。"""
+    kinds = {"text", "rect", "image"}
+    for si, s in enumerate(deck["slides"], 1):
+        if not isinstance(s, dict):
+            _die(f"{name} 第 {si} 页不是一个对象（应该是 {{...}}）")
+        els = s.get("elements")
+        if els is None:
+            continue                      # 老格式，title/sub/body 那种
+        if not isinstance(els, list):
+            _die(f"{name} 第 {si} 页的 elements 要是数组")
+        for ei, el in enumerate(els, 1):
+            where = f"{name} 第 {si} 页第 {ei} 个元素"
+            if not isinstance(el, dict):
+                _die(f"{where} 不是对象")
+            kind = el.get("type")
+            if kind not in kinds:
+                _die(f"{where} 的 type 是 {kind!r}，只能是 {'/'.join(sorted(kinds))}")
+            for k in ("x", "y"):
+                if not isinstance(el.get(k), (int, float)):
+                    _die(f"{where}（{kind}）缺少数值 {k}")
+            if kind in ("rect", "image") and not isinstance(el.get("w"), (int, float)):
+                _die(f"{where}（{kind}）缺少宽度 w")
+            if kind == "image" and not el.get("src"):
+                _die(f"{where}（image）缺少 src")
+            if kind == "text" and not el.get("paragraphs") and "text" not in el:
+                _die(f"{where}（text）既没有 text 也没有 paragraphs")
+
+
+def _load_deck(path, preset_override=None):
+    if not path.exists():
+        _die(f"找不到 {path}")
+    try:
+        deck = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        _die(f"{path.name} 不是合法 JSON：第 {e.lineno} 行第 {e.colno} 列 — {e.msg}")
+    if not isinstance(deck, dict) or not isinstance(deck.get("slides"), list):
+        _die(f'{path.name} 里没有 slides 数组（顶层应该是 {{"slides": [ ... ]}}）')
+    if not deck["slides"]:
+        _die(f"{path.name} 的 slides 是空的")
+    deck["_base"] = str(path.parent)
+    _validate(deck, path.name)
+
+    if preset_override:
+        pj = Path(__file__).parent / "presets" / f"{preset_override}.json"
+        if not pj.exists():
+            have = ", ".join(sorted(p.stem for p in (Path(__file__).parent / "presets").glob("*.json")))
+            _die(f"没有 preset：{preset_override}（有：{have}）")
+        deck["preset"] = json.loads(pj.read_text(encoding="utf-8"))
+    return deck
 
 
 def main():
-    ap = argparse.ArgumentParser(description="deck.json -> 光影背景 -> 可编辑 pptx")
-    ap.add_argument("deck")
-    ap.add_argument("--out", default="out/deck.pptx")
-    ap.add_argument("--preset", default=None, help="cinematic / editorial / signal")
-    ap.add_argument("--png-only", action="store_true")
-    ap.add_argument("--pages", default="", help="只渲某几页，如 2,3")
+    ap = argparse.ArgumentParser(
+        prog="deck-shader",
+        description="deck.json -> shader 光影背景 -> 文字仍可编辑的 pptx")
+    ap.add_argument("deck", help="deck.json 路径")
+    ap.add_argument("--out", default="out/deck.pptx", help="输出路径（默认 out/deck.pptx）")
+    ap.add_argument("--preset", default=None,
+                    help="cinematic / editorial / signal / glass / dawn")
+    ap.add_argument("--png-only", action="store_true", help="只出背景图，不组 pptx")
+    ap.add_argument("--pages", default="", help="只渲染某几页，如 2,3（需配合 --png-only）")
+    ap.add_argument("--png", action="store_true", help="背景存 PNG（无损，但一张 ~1.7 MB）")
+    ap.add_argument("--quality", type=int, default=92, metavar="1-100",
+                    help="JPEG 质量，默认 92")
+    ap.add_argument("--version", action="version", version=f"deck-shader {__version__}")
     args = ap.parse_args()
 
+    if args.pages and not args.png_only:
+        _die("--pages 只用于 --png-only；生成 pptx 时不能只留几页")
+    if not 1 <= args.quality <= 100:
+        _die(f"--quality 要在 1–100，收到 {args.quality}")
+
+    ext = ".png" if args.png else ".jpg"
     path = Path(args.deck).resolve()
-    deck = json.loads(path.read_text(encoding="utf-8"))
-    deck["_base"] = str(path.parent)
+    deck = _load_deck(path, args.preset)
 
-    if args.preset:
-        pj = Path(__file__).parent / "presets" / f"{args.preset}.json"
-        if not pj.exists():
-            sys.exit(f"没有 preset: {args.preset}")
-        deck["preset"] = json.loads(pj.read_text(encoding="utf-8"))
+    only = None
+    if args.pages:
+        try:
+            only = {int(x) for x in args.pages.split(",") if x.strip()}
+        except ValueError:
+            _die(f"--pages 要写成 2,3 这样，收到 {args.pages!r}")
+        n = len(deck["slides"])
+        if not only or max(only) > n or min(only) < 1:
+            _die(f"--pages {args.pages} 超出范围：这份 deck 只有 {n} 页")
 
-    only = {int(x) for x in args.pages.split(",") if x.strip()} or None
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 
     if args.png_only:
-        pngs = [render_bg({"preset": s.get("preset") or deck.get("preset"),
-                           "time": s.get("time", i * 1.7)},
-                          str(Path(args.out).with_suffix("")) + f"_bg{i}.png")
-                for i, s in enumerate(deck["slides"])
-                if not only or (i + 1) in only]
-        print("done:", len(pngs), "张背景")
+        bgs = render_backgrounds(deck, args.out, only, ext, args.quality)
+        if not bgs:
+            print("这个范围里没有需要渲染的页（都是纯色/图片背景）")
+            return
+        print("done:", len(bgs), "张背景 ->", ", ".join(bgs.values()))
         return
 
-    pngs = build_pptx(deck, args.out, only)
-    print(f"done: {args.out} | {len(pngs)} 页")
+    bgs = build_pptx(deck, args.out, only, ext, args.quality)
+    mb = os.path.getsize(args.out) / 1e6
+    print(f"done: {args.out} | {len(deck['slides'])} 页 | {len(bgs)} 张背景 | {mb:.1f} MB")
 
 
 if __name__ == "__main__":

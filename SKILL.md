@@ -83,14 +83,18 @@ a 1px rule at `x = 656`, one accent per page.
 
 | name | light | mood |
 |---|---|---|
-| `cinematic` | `#ffc98a` | warm key light, dark stage |
-| `editorial` | `#e8e2d6` | cold paper light, high contrast |
-| `signal` | `#7fd1ff` | blue monitor glow |
+| `cinematic` | `#ffc98a` | warm key light, narrow beam, dark stage |
+| `editorial` | `#e8e2d6` | wide cold daylight, high floor bounce |
+| `signal` | `#7fd1ff` | blue monitor glow, tight beam |
+| `glass` | `#bcd9ff` | thin filament in a hazy room |
+| `dawn` | `#ffb08a` | low horizon, warm, floor takes most of the light |
 
-Pass `--preset <name>` or set `preset` in the JSON.
+Pass `--preset <name>` or set `preset` in the JSON. Beyond `light/origin/dir/intensity`
+a preset also takes `width` (beam thickness), `haze` (dust in the air), `floor`
+(reflection), `horizon` (where the floor starts) and `grain`.
 
 ## Limitations
 
-- Backgrounds are baked images: ~1.5 MB per slide at 1920×1080.
+- Backgrounds are baked images: ~150 KB per slide as JPEG (default), ~1.7 MB with `--png`.
 - Headless Chrome is required (SwiftShader fallback works without a GPU).
 - CJK fonts fall back to the system serif if the named font is missing.

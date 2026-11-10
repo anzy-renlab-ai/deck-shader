@@ -1,0 +1,17 @@
+{
+  "light": "#bcd9ff",
+  "origin": [
+    0.62,
+    0.92
+  ],
+  "dir": [
+    -0.3,
+    -1.0
+  ],
+  "intensity": 0.85,
+  "width": 0.5,
+  "haze": 0.95,
+  "floor": 0.5,
+  "horizon": -0.05,
+  "grain": 0.003
+}
