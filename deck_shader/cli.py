@@ -105,6 +105,11 @@ def _to_jpeg(src_png, out_jpg, quality):
     return out_jpg
 
 
+def _reject_blank(path):
+    if _looks_blank(path):
+        _die("背景是一张纯色图——WebGL 没跑起来，试试换一台机器或加 --use-angle=metal")
+
+
 def render_bg(cfg, out_img, quality=92):
     """cfg = {preset, time}；只画 shader，不带任何文字。"""
     if not CHROME:
@@ -123,11 +128,11 @@ def render_bg(cfg, out_img, quality=92):
     try:
         if not want_jpeg:
             _screenshot(tmp_html, out_img)
+            _reject_blank(out_img)
             return out_img
         tmp_png = tmpdir / "shot.png"
         _screenshot(tmp_html, tmp_png)
-        if _looks_blank(tmp_png):
-            _die("背景是一张纯色图——WebGL 没跑起来，试试换一台机器或加 --use-angle=metal")
+        _reject_blank(tmp_png)
         if _to_jpeg(tmp_png, out_img, quality) is None:
             _screenshot(tmp_html, out_img)     # 没有 Pillow：交给 Chrome 写 JPEG
         return out_img
@@ -349,9 +354,16 @@ def build_pptx(deck, out, only=None, ext=".jpg", quality=92):
 def _validate(deck, name):
     """写错的坐标不该等到 pptx 打开才发现——这里一次性说清楚是哪一页哪个元素。"""
     kinds = {"text", "rect", "image"}
+    for where, val in (("顶层", deck.get("preset")),):
+        if val is not None and not isinstance(val, (str, dict)):
+            _die(f"{name} {where}的 preset 要写成预设名（字符串）或参数对象，收到 {type(val).__name__}")
     for si, s in enumerate(deck["slides"], 1):
         if not isinstance(s, dict):
             _die(f"{name} 第 {si} 页不是一个对象（应该是 {{...}}）")
+        pv = s.get("preset")
+        if pv is not None and not isinstance(pv, (str, dict)):
+            _die(f"{name} 第 {si} 页的 preset 要写成预设名（字符串）或参数对象，"
+                 f"收到 {type(pv).__name__}")
         els = s.get("elements")
         if els is None:
             continue                      # 老格式，title/sub/body 那种
@@ -373,6 +385,30 @@ def _validate(deck, name):
                 _die(f"{where}（image）缺少 src")
             if kind == "text" and not el.get("paragraphs") and "text" not in el:
                 _die(f"{where}（text）既没有 text 也没有 paragraphs")
+            _warn_offstage(el, kind, where)
+
+
+def _warn_offstage(el, kind, where):
+    """整块跑到画布外面的文字，永远不会出现在观众眼里。
+
+    只有 text 才报：图片和矩形超出边界是正常出血，不算错。
+    """
+    if kind != "text":
+        return
+    x, y = el["x"], el["y"]
+    w = el.get("w") or 0
+    h = el.get("h") or 20
+    if x + w <= 0 or y + h <= 0 or x >= CW or y >= CH:
+        print(f"  ! {where}（text）整块在 {CW}×{CH} 画布外面，观众看不到它",
+              file=sys.stderr)
+
+
+def _preset_by_name(name, where=""):
+    pj = Path(__file__).parent / "presets" / f"{name}.json"
+    if not pj.exists():
+        have = ", ".join(sorted(p.stem for p in (Path(__file__).parent / "presets").glob("*.json")))
+        _die(f"{where+' 的' if where else ''}没有 preset：{name}（有：{have}）")
+    return json.loads(pj.read_text(encoding="utf-8"))
 
 
 def _load_deck(path, preset_override=None):
@@ -390,11 +426,15 @@ def _load_deck(path, preset_override=None):
     _validate(deck, path.name)
 
     if preset_override:
-        pj = Path(__file__).parent / "presets" / f"{preset_override}.json"
-        if not pj.exists():
-            have = ", ".join(sorted(p.stem for p in (Path(__file__).parent / "presets").glob("*.json")))
-            _die(f"没有 preset：{preset_override}（有：{have}）")
-        deck["preset"] = json.loads(pj.read_text(encoding="utf-8"))
+        deck["preset"] = _preset_by_name(preset_override)
+
+    # "preset": "glass" 这种写法也要认——否则字符串会被当成参数对象，
+    # shader 读不到任何一个字段，安安静静画出一张没调过的默认光。
+    if isinstance(deck.get("preset"), str):
+        deck["preset"] = _preset_by_name(deck["preset"])
+    for si, s in enumerate(deck["slides"], 1):
+        if isinstance(s, dict) and isinstance(s.get("preset"), str):
+            s["preset"] = _preset_by_name(s["preset"], where=f"第 {si} 页")
     return deck
 
 

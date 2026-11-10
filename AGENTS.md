@@ -63,7 +63,8 @@ render), `time` (shader time), `notes`.
 `preset` fields: `light` `origin` `dir` `intensity` — plus `width` (beam
 thickness), `haze` (dust), `floor` (reflection), `horizon`, `grain`. Shipped
 presets: `cinematic`, `editorial`, `signal`, `glass`, `dawn`
-(`--preset <name>` overrides the JSON).
+(`--preset <name>` overrides the JSON). Instead of the object you may write
+`"preset": "glass"` — top-level or per slide.
 
 `examples/precision/deck.json` is the reference. `examples/hello/` is the
 minimal one.

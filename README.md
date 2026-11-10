@@ -202,6 +202,10 @@ changes how much of the beam is reflected back up.
 `deck-shader deck.json --preset dawn` overrides whatever the JSON says, which is
 how you restyle a whole deck with one flag.
 
+Inside the JSON you can name a preset instead of spelling out the parameters —
+`"preset": "glass"` at the top of the file or on a single slide. Naming a preset
+that does not exist is an error, not a silent fallback to defaults.
+
 ## Why this exists
 
 Two observations.

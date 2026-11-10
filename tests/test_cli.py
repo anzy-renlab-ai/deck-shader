@@ -56,6 +56,40 @@ def test_preset_override_wins(tmp_path):
     assert deck["preset"]["light"] == "#ffb08a"
 
 
+def test_preset_as_name_resolves(tmp_path):
+    p = _write(tmp_path, {"preset": "dawn", "slides": [{}]})
+    deck = cli._load_deck(p)
+    assert deck["preset"]["light"] == "#ffb08a"
+
+
+def test_slide_preset_as_name_resolves(tmp_path):
+    p = _write(tmp_path, {"slides": [{"preset": "glass"}, {}]})
+    deck = cli._load_deck(p)
+    assert deck["slides"][0]["preset"]["width"] == 0.5
+    assert "preset" not in deck["slides"][1]
+
+
+def test_unknown_preset_name_in_deck(tmp_path):
+    p = _write(tmp_path, {"preset": "neon", "slides": [{}]})
+    with pytest.raises(SystemExit) as e:
+        cli._load_deck(p)
+    assert "neon" in str(e.value) and "cinematic" in str(e.value)
+
+
+def test_unknown_preset_name_on_slide_says_which_page(tmp_path):
+    p = _write(tmp_path, {"slides": [{}, {"preset": "neon"}]})
+    with pytest.raises(SystemExit) as e:
+        cli._load_deck(p)
+    assert "第 2 页" in str(e.value)
+
+
+def test_preset_wrong_type(tmp_path):
+    p = _write(tmp_path, {"preset": 5, "slides": [{}]})
+    with pytest.raises(SystemExit) as e:
+        cli._load_deck(p)
+    assert "preset" in str(e.value)
+
+
 def test_legacy_uses_style():
     els = cli._legacy({"title": "T", "sub": "S", "body": "B"},
                       {"font": "Noto Serif SC", "titleColor": "123456",
@@ -95,6 +129,20 @@ def test_image_requires_src(tmp_path):
 def test_legacy_slides_skip_element_validation(tmp_path):
     p = _write(tmp_path, {"slides": [{"title": "只有标题"}]})
     assert cli._load_deck(p)["slides"]
+
+
+def test_text_entirely_off_canvas_warns(tmp_path, capsys):
+    p = _write(tmp_path, {"slides": [{"elements": [
+        {"type": "text", "x": 72, "y": 900, "w": 600, "text": "看不见"}]}]})
+    cli._load_deck(p)                                  # 不报错，只警告
+    assert "画布外面" in capsys.readouterr().err
+
+
+def test_image_bleeding_off_canvas_is_fine(tmp_path, capsys):
+    p = _write(tmp_path, {"slides": [{"elements": [
+        {"type": "image", "src": "a.png", "x": -40, "y": -40, "w": 200, "h": 200}]}]})
+    cli._load_deck(p)
+    assert capsys.readouterr().err == ""
 
 
 def test_examples_are_loadable():

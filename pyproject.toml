@@ -12,6 +12,19 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "anzy-renlab-ai" }]
 keywords = ["pptx", "webgl", "shader", "slides", "presentation", "python-pptx"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Office/Business :: Office Suites",
+    "Topic :: Multimedia :: Graphics :: 3D Rendering",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
 dependencies = ["python-pptx>=0.6.21", "Pillow>=9"]
 
 [project.optional-dependencies]

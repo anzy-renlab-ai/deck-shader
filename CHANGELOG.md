@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `"preset": "glass"` — a preset can be named instead of spelled out, at the
+  top level or on one slide. A name that doesn't exist is an error; it used to
+  fall back to the default light without saying anything.
+- `preset` that isn't a name or an object is rejected with the page number.
+- `--png` runs the flat-frame check too. It was only run on the JPEG path, so
+  the lossless output could hand you a solid-colour slide.
+- Text placed entirely outside the 1280×720 canvas now warns. Images and rects
+  bleeding off the edge are still silent — that's a normal bleed.
+
 ## 0.2.0
 
 Backgrounds are now 11× smaller, presets are physical parameters instead of
