@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>deck-shader · live</title>
+<style>
+:root{--fg:#efe6da;--dim:#8f8578;--line:#26221d}
+*{box-sizing:border-box}
+body{margin:0;background:#08090c;color:var(--fg);font:14px/1.6 -apple-system,"PingFang SC",system-ui,sans-serif;overflow:hidden}
+#stage{position:fixed;inset:0;display:grid;place-items:center}
+.frame{position:relative;width:min(100vw,177.78vh);container-type:inline-size;box-shadow:0 40px 120px rgba(0,0,0,.75)}
+canvas{display:block;width:100%;height:auto}
+.ov{position:absolute;inset:0;pointer-events:none;font-family:"Songti SC","Noto Serif SC",serif}
+.ov .kick{position:absolute;left:7.5%;top:9%;font-family:"Helvetica Neue",sans-serif;font-size:1cqw;letter-spacing:.42em;color:rgba(255,225,190,.55)}
+.ov .rule{position:absolute;left:7.5%;top:30.5%;width:4.4%;height:2px;background:linear-gradient(90deg,rgba(255,196,130,.95),rgba(255,196,130,0));box-shadow:0 0 20px rgba(255,170,90,.85)}
+.ov h1{position:absolute;left:7.5%;top:32%;margin:0;font-size:5.5cqw;font-weight:600;line-height:1.16;color:#fff;text-shadow:0 0 70px rgba(255,180,110,.22)}
+.ov .sub{position:absolute;left:7.75%;top:52%;font-size:1.56cqw;letter-spacing:.18em;color:rgba(255,236,214,.55)}
+.ov .foot{position:absolute;left:7.5%;bottom:6%;font-family:"Helvetica Neue",sans-serif;font-size:.87cqw;letter-spacing:.3em;color:rgba(255,220,190,.32)}
+#ui{position:fixed;left:0;right:0;bottom:0;padding:12px 22px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;
+    background:linear-gradient(transparent,rgba(8,9,12,.94) 45%);border-top:1px solid var(--line)}
+#ui label{display:flex;gap:8px;align-items:center;color:var(--dim);white-space:nowrap}
+input[type=range]{width:96px;accent-color:#ffc98a}
+input[type=text]{background:#12141a;border:1px solid var(--line);color:var(--fg);padding:5px 9px;border-radius:6px;font:inherit;width:230px}
+input[type=color]{width:32px;height:24px;border:1px solid var(--line);background:none;padding:0;border-radius:4px}
+button{background:#14161c;border:1px solid var(--line);color:var(--fg);padding:6px 12px;border-radius:6px;cursor:pointer;font:inherit}
+button:hover{border-color:#3a3730}
+#copy{position:fixed;right:20px;top:16px}
+#hint{position:fixed;left:20px;top:16px;color:var(--dim);letter-spacing:.14em;font-size:11px}
+#hint b{color:#ffc98a;font-weight:500;letter-spacing:.14em}
+</style></head>
+<body>
+<div id="hint"><b>deck-shader</b> · live playground</div>
+<button id="copy">copy deck.json</button>
+
+<div id="stage"><div class="frame">
+  <canvas id="c" width="1600" height="900"></canvas>
+  <div class="ov">
+    <div class="kick">DECK · SHADER</div>
+    <div class="rule"></div>
+    <h1 id="t1">光线是可以计算的</h1>
+    <div class="sub" id="t2">把 PPT 的背景交给 WebGL</div>
+    <div class="foot">ANZY · RENLAB</div>
+  </div>
+</div></div>
+
+<div id="ui">
+  <label>标题 <input type="text" id="inTitle" value="光线是可以计算的"></label>
+  <label>副标题 <input type="text" id="inSub" value="把 PPT 的背景交给 WebGL"></label>
+  <label>光色 <input type="color" id="light" value="#ffc98a"></label>
+  <label>光源 <input type="range" id="ox" min="-1" max="1" step="0.01" value="0.55"></label>
+  <label>强度 <input type="range" id="it" min="0.2" max="2" step="0.01" value="1"></label>
+  <label>暂停 <button id="pause">⏸</button></label>
+</div>
+
+<script>
+const c=document.getElementById('c'), gl=c.getContext('webgl');
+const VS="attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+const FS=`
+precision highp float;
+uniform vec2 R;uniform float T;uniform vec3 LIGHT;uniform vec2 ORIGIN;uniform vec2 DIR;uniform float INT;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+ return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p*=2.03;a*=.5;}return v;}
+vec3 beamAt(vec2 st,float T,float bloom){
+  vec2 dir=normalize(DIR);vec2 nor=vec2(-dir.y,dir.x);
+  float along=dot(st-ORIGIN,dir);float d=dot(st-ORIGIN,nor);
+  d+=0.010*sin(along*3.1+T*0.4)+0.006*sin(along*7.7-T*0.23);
+  float core=exp(-(d*70.0)*(d*70.0)),body=exp(-(d*10.0)*(d*10.0)),halo=exp(-(d*2.5)*(d*2.5));
+  float taper=smoothstep(-0.45,0.70,along)*smoothstep(1.85,0.95,along);
+  float stri=0.55+0.65*fbm(vec2(d*22.0,along*3.4-T*0.05));
+  stri*=0.72+0.42*fbm(vec2(d*6.0+3.0,along*1.1-T*0.02));
+  return vec3(core*1.9+body*0.95+halo*0.24*bloom)*stri*taper;
+}
+void main(){
+  vec2 st=(gl_FragCoord.xy-0.5*R)/R.y;
+  vec3 air=beamAt(st,T,1.0);
+  vec3 airCol=vec3(0.018,0.025,0.042)+LIGHT*air*INT+vec3(0.25,0.40,0.75)*air*0.08;
+  float horizon=-0.17;float k=max(horizon-st.y,0.0);
+  vec2 mir=vec2(st.x,horizon+k);
+  float rip=fbm(vec2(st.x*3.0,k*9.0-T*0.25));
+  mir.x+=(rip-0.5)*0.10*smoothstep(0.0,0.5,k);
+  vec3 refl=beamAt(mir,T*0.5,0.7)*0.55;
+  float cau=fbm(vec2(st.x*4.0,k*14.0+T*0.06));cau=cau*cau*cau;
+  vec3 floorCol=vec3(0.012,0.016,0.027)+LIGHT*refl*0.95+LIGHT*cau*0.22+vec3(0.030,0.026,0.022)*exp(-k*3.0);
+  float m=smoothstep(horizon+0.035,horizon-0.035,st.y);
+  vec3 col=mix(airCol,floorCol,m);
+  float dust=0.0;
+  for(int i=0;i<4;i++){
+    float fi=float(i);
+    vec2 g=st*vec2(16.0+fi*7.0,16.0+fi*7.0)+vec2(fi*13.0,fi*7.0)+vec2(0.,-T*0.035*(1.+fi*0.4));
+    vec2 id=floor(g);vec2 f=fract(g)-0.5;float rnd=h(id);
+    if(rnd>0.955){float rad=0.10+0.16*fract(rnd*37.0);
+      dust+=smoothstep(rad,0.0,length(f))*smoothstep(0.955,1.0,rnd)*(0.55+0.45*sin(T*1.3+rnd*30.0));}
+  }
+  col+=vec3(1.0,0.90,0.74)*dust*0.36*smoothstep(1.1,-0.1,length(st-ORIGIN));
+  col+=vec3(0.12,0.09,0.06)*exp(-((st.y-horizon)*14.0)*((st.y-horizon)*14.0))*0.35;
+  col*=1.0-0.60*smoothstep(0.12,-0.62,st.y);
+  col*=1.0-0.60*length(st*vec2(0.50,0.78));
+  col+=(h(gl_FragCoord.xy+T*11.0)-0.5)*0.010;
+  gl_FragColor=vec4(pow(max(col,0.0),vec3(0.92)),1.0);
+}`;
+function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
+const pr=gl.createProgram();
+gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));
+gl.linkProgram(pr);gl.useProgram(pr);
+const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+const loc=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(loc);
+gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+const U=n=>gl.getUniformLocation(pr,n);
+const hex=x=>[1,3,5].map(i=>parseInt(x.slice(i,i+2),16)/255);
+
+const $=id=>document.getElementById(id);
+const ui={light:$('light'),ox:$('ox'),it:$('it')};
+let t0=performance.now(), paused=false, tRef=0;
+
+function draw(now){
+  const t=paused?tRef:3+(now-t0)/1000;
+  gl.uniform2f(U('R'),c.width,c.height);
+  gl.uniform1f(U('T'),t);
+  gl.uniform3fv(U('LIGHT'),new Float32Array(hex(ui.light.value)));
+  gl.uniform2fv(U('ORIGIN'),new Float32Array([+ui.ox.value,0.85]));
+  gl.uniform2fv(U('DIR'),new Float32Array([-0.42,-1.0]));
+  gl.uniform1f(U('INT'),+ui.it.value);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+$('pause').onclick=()=>{
+  if(!paused){tRef=3+(performance.now()-t0)/1000;}
+  else{t0=performance.now()-(tRef-3)*1000;}
+  paused=!paused;
+  $('pause').textContent=paused?'▶':'⏸';
+};
+$('inTitle').oninput=e=>$('t1').textContent=e.target.value;
+$('inSub').oninput=e=>$('t2').textContent=e.target.value;
+
+$('copy').onclick=()=>{
+  const deck={
+    preset:{light:ui.light.value,origin:[+ui.ox.value,0.85],dir:[-0.42,-1.0],intensity:+ui.it.value},
+    style:{font:'Songti SC',titleColor:'FFFFFF'},
+    slides:[{kicker:'DECK · SHADER',title:$('inTitle').value,titleTop:330,
+             sub:$('inSub').value,subTop:470,time:3,
+             notes:'Write your speaker note here.'}]
+  };
+  navigator.clipboard.writeText(JSON.stringify(deck,null,2));
+  const btn=$('copy');btn.textContent='copied ✓';
+  setTimeout(()=>btn.textContent='copy deck.json',1400);
+};
+</script></body></html>

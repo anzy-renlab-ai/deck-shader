@@ -10,6 +10,8 @@ Write a JSON file. A shader renders the light — volumetric beams, caustics, dr
 
 `python3 scripts/render.py examples/hello/deck.json`
 
+<a href="https://anzy-renlab-ai.github.io/deck-shader/"><b>▶ Try it live in the browser — no install</b></a>
+
 <sub>A 6-second render from `examples/hello`. The text is native PowerPoint text; only the light is baked.</sub>
 
 </div>
@@ -92,7 +94,7 @@ This is the missing layer: a renderer, not a template.
 - [x] JSON → PNG → editable `.pptx`
 - [ ] presets: `editorial`, `glass`, `dawn`, `signal`
 - [ ] video export (15s loop, for social covers)
-- [ ] HTML runtime (same shader, live in a browser)
+- [x] HTML runtime (same shader, live in a browser)
 - [ ] paper mode: arXiv PDF → deck outline → rendered deck
 
 ## Works as an agent skill
