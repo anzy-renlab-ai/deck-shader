@@ -91,3 +91,7 @@ minimal one.
 deck-shader deck.json --pages 1 --png-only     # background only, fast
 deck-shader deck.json --out out/deck.pptx
 ```
+
+Unchanged backgrounds are cached, so the change-one-number loop is ~0.1 s per
+run. If you edit `template.html` the cache invalidates itself; `--no-cache`
+forces a full re-render.

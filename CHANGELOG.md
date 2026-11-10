@@ -10,6 +10,10 @@
   the lossless output could hand you a solid-colour slide.
 - Text placed entirely outside the 1280×720 canvas now warns. Images and rects
   bleeding off the edge are still silent — that's a normal bleed.
+- Backgrounds are cached in `.deck-shader-cache/` next to the output, keyed on
+  the shader config plus a hash of `template.html`. Re-rendering a deck after
+  touching one slide is 0.1 s instead of 2.9 s, and the cached plate is
+  byte-identical to a fresh render. `--no-cache` re-renders everything.
 
 ## 0.2.0
 

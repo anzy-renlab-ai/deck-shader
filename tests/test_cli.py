@@ -131,6 +131,40 @@ def test_legacy_slides_skip_element_validation(tmp_path):
     assert cli._load_deck(p)["slides"]
 
 
+def test_cache_key_changes_with_quality_and_config(tmp_path):
+    cfg = {"preset": {"light": "#ffffff"}, "time": 0}
+    out = tmp_path / "bg.jpg"
+    _, a = cli._cache_file(cfg, str(out), 92)
+    _, b = cli._cache_file(cfg, str(out), 80)
+    _, c = cli._cache_file({**cfg, "time": 1.7}, str(out), 92)
+    _, d = cli._cache_file(cfg, str(out), 92)
+    assert a == d and a != b and a != c
+
+
+def test_cache_hit_does_not_launch_chrome(tmp_path, monkeypatch):
+    out = tmp_path / "bg.jpg"
+    cfg = {"preset": {"light": "#ffffff"}, "time": 0}
+    cache_dir, cache_file = cli._cache_file(cfg, str(out), 92)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file.write_bytes(b"from-cache")
+    monkeypatch.setattr(cli, "CHROME", "/definitely/not/chrome")
+
+    cli.render_bg(cfg, str(out), 92, cache=True)
+    assert out.read_bytes() == b"from-cache"
+
+
+def test_no_cache_flag_skips_the_cache(tmp_path, monkeypatch):
+    out = tmp_path / "bg.jpg"
+    cfg = {"preset": {"light": "#ffffff"}, "time": 0}
+    cache_dir, cache_file = cli._cache_file(cfg, str(out), 92)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file.write_bytes(b"from-cache")
+    monkeypatch.setattr(cli, "CHROME", "/definitely/not/chrome")
+
+    with pytest.raises(FileNotFoundError):
+        cli.render_bg(cfg, str(out), 92, cache=False)
+
+
 def test_text_entirely_off_canvas_warns(tmp_path, capsys):
     p = _write(tmp_path, {"slides": [{"elements": [
         {"type": "text", "x": 72, "y": 900, "w": 600, "text": "看不见"}]}]})

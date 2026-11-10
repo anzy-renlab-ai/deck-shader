@@ -11,6 +11,7 @@
   python3 render.py deck.json --preset cinematic
 """
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -110,7 +111,33 @@ def _reject_blank(path):
         _die("背景是一张纯色图——WebGL 没跑起来，试试换一台机器或加 --use-angle=metal")
 
 
-def render_bg(cfg, out_img, quality=92):
+CACHE_DIRNAME = ".deck-shader-cache"
+
+
+def _cache_file(cfg, out_img, quality):
+    """同一份配置 + 同一个 template 出来的必然是同一种光，存一次就够。
+
+    改一个数字重渲染时，没动过的页直接命中，十页 deck 只等一页。
+    """
+    tpl = (Path(__file__).parent / "template.html").read_bytes()
+    h = hashlib.sha1(json.dumps(cfg, sort_keys=True, ensure_ascii=False).encode("utf-8"))
+    h.update(tpl)
+    h.update(f"|q{quality}|{SW}x{SH}|{Path(out_img).suffix.lower()}".encode())
+    d = Path(out_img).parent / CACHE_DIRNAME
+    return d, d / f"{h.hexdigest()[:20]}{Path(out_img).suffix.lower()}"
+
+
+def _store_cache(src, cache_dir, cache_file):
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, cache_file)          # 并行渲染时不能留半个文件
+    except OSError:
+        pass                                  # 缓存坏了不该拖垮渲染
+
+
+def render_bg(cfg, out_img, quality=92, cache=True):
     """cfg = {preset, time}；只画 shader，不带任何文字。"""
     if not CHROME:
         sys.exit("找不到 Chrome，请设置 CHROME=/path/to/chrome")
@@ -120,6 +147,10 @@ def render_bg(cfg, out_img, quality=92):
     for k in ("kickerTop", "titleTop", "subTop", "bodyTop"):
         if k in cfg:
             cfg[k] = cfg[k] * SCALE
+    cache_dir, cache_file = _cache_file(cfg, out_img, quality)
+    if cache and cache_file.exists() and cache_file.stat().st_size > 0:
+        shutil.copyfile(cache_file, out_img)
+        return out_img
     html = tpl.replace("__CFG__", json.dumps(cfg, ensure_ascii=False))
     tmpdir = Path(tempfile.mkdtemp())
     tmp_html = tmpdir / "s.html"
@@ -129,12 +160,14 @@ def render_bg(cfg, out_img, quality=92):
         if not want_jpeg:
             _screenshot(tmp_html, out_img)
             _reject_blank(out_img)
-            return out_img
-        tmp_png = tmpdir / "shot.png"
-        _screenshot(tmp_html, tmp_png)
-        _reject_blank(tmp_png)
-        if _to_jpeg(tmp_png, out_img, quality) is None:
-            _screenshot(tmp_html, out_img)     # 没有 Pillow：交给 Chrome 写 JPEG
+        else:
+            tmp_png = tmpdir / "shot.png"
+            _screenshot(tmp_html, tmp_png)
+            _reject_blank(tmp_png)
+            if _to_jpeg(tmp_png, out_img, quality) is None:
+                _screenshot(tmp_html, out_img)     # 没有 Pillow：交给 Chrome 写 JPEG
+        if cache:
+            _store_cache(out_img, cache_dir, cache_file)
         return out_img
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -280,7 +313,7 @@ def _die(msg):
     sys.exit(f"deck-shader: {msg}")
 
 
-def render_backgrounds(deck, out, only=None, ext=".jpg", quality=92):
+def render_backgrounds(deck, out, only=None, ext=".jpg", quality=92, cache=True):
     """把所有需要的背景渲完（可并行），返回 {slide_index: path}。"""
     stem = str(Path(out).with_suffix(""))
     todo = [(i, s) for i, s in enumerate(deck["slides"])
@@ -295,13 +328,13 @@ def render_backgrounds(deck, out, only=None, ext=".jpg", quality=92):
                    "time": s.get("time", i * 1.7)}
             p = f"{stem}_bg{i}{ext}"
             paths[i] = p
-            futs[pool.submit(render_bg, cfg, p, quality)] = i
+            futs[pool.submit(render_bg, cfg, p, quality, cache)] = i
         for f, i in futs.items():
             f.result()          # 出错就在这里炸，别等到组装 pptx
     return paths
 
 
-def build_pptx(deck, out, only=None, ext=".jpg", quality=92):
+def build_pptx(deck, out, only=None, ext=".jpg", quality=92, cache=True):
     from pptx import Presentation
     from pptx.util import Inches
 
@@ -310,7 +343,7 @@ def build_pptx(deck, out, only=None, ext=".jpg", quality=92):
     prs.slide_height = Inches(SLIDE_H_IN)
     blank = prs.slide_layouts[6]
     base = deck.get("_base", ".")
-    bgs = render_backgrounds(deck, out, only, ext, quality)
+    bgs = render_backgrounds(deck, out, only, ext, quality, cache)
 
     for i, s in enumerate(deck["slides"]):
         if only and (i + 1) not in only:
@@ -451,6 +484,8 @@ def main():
     ap.add_argument("--png", action="store_true", help="背景存 PNG（无损，但一张 ~1.7 MB）")
     ap.add_argument("--quality", type=int, default=92, metavar="1-100",
                     help="JPEG 质量，默认 92")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="忽略背景缓存，全部重渲（改过 shader 但没改 template 时用）")
     ap.add_argument("--version", action="version", version=f"deck-shader {__version__}")
     args = ap.parse_args()
 
@@ -476,14 +511,15 @@ def main():
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 
     if args.png_only:
-        bgs = render_backgrounds(deck, args.out, only, ext, args.quality)
+        bgs = render_backgrounds(deck, args.out, only, ext, args.quality,
+                                 not args.no_cache)
         if not bgs:
             print("这个范围里没有需要渲染的页（都是纯色/图片背景）")
             return
         print("done:", len(bgs), "张背景 ->", ", ".join(bgs.values()))
         return
 
-    bgs = build_pptx(deck, args.out, only, ext, args.quality)
+    bgs = build_pptx(deck, args.out, only, ext, args.quality, not args.no_cache)
     mb = os.path.getsize(args.out) / 1e6
     print(f"done: {args.out} | {len(deck['slides'])} 页 | {len(bgs)} 张背景 | {mb:.1f} MB")
 
