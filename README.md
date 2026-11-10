@@ -51,6 +51,43 @@ python3 scripts/render.py examples/hello/deck.json --out out/hello.pptx
 
 Requires Chrome (headless, for the WebGL pass). macOS path is auto-detected; override with `CHROME=/path/to/chrome`.
 
+## A slide is a list of elements at exact coordinates
+
+<img src="docs/precision-02.png" width="880" alt="A paper-white slide: kicker, title, two columns split by a 1px rule at x=656, one red sentence">
+
+Content slides are not "title + bullets + a theme". Every element is placed by
+hand — a text box at `x: 704`, a 1px rule at `x: 656`, a 96px number that is
+allowed to be bigger than the title because on this page it is the subject.
+
+```json
+{ "type": "rect", "x": 656, "y": 208, "w": 1, "h": 116, "fill": "#D8DEE4" },
+{ "type": "text", "x": 704, "y": 238, "w": 504, "h": 120, "paragraphs": [
+    { "align": "left", "lineSpacingPct": 170, "runs": [
+      { "text": "每一页只描述它自己要说的那件事。", "sizePt": 17,
+        "color": "#142B40", "font": "PingFang SC" } ] } ] }
+```
+
+Three element types: `text` (paragraphs → runs, each with its own font, size,
+color, letter-spacing), `rect` (hairlines, fills, dividers), `image`.
+
+Canvas is **1280 × 720**. 1 px = 0.75 pt, 1 in = 96 px — the numbers are the
+same ones you'd read off a Figma inspect panel, so you can measure once and
+type it in.
+
+<img src="docs/precision-03.png" width="880" alt="Three large numbers — 72, 1, 1 — each with a label and a two-line explanation">
+
+The full example is `examples/precision/`.
+
+### Why coordinates and not a layout engine
+
+A layout engine chooses where things go. That is exactly the thing you cannot
+delegate when the deck has to say something: the sentence that matters gets the
+same weight as the sentence that doesn't, and all ten slides come out looking
+like the same slide.
+
+Templates are *selected*. Coordinates are *written*. The difference shows up as
+whether a page can be louder than the page before it.
+
 ## A deck is a JSON file
 
 ```json
@@ -92,6 +129,7 @@ This is the missing layer: a renderer, not a template.
 
 - [x] volumetric beam + floor caustics + dust, parameterized
 - [x] JSON → PNG → editable `.pptx`
+- [x] absolute element model: `text` / `rect` / `image` at 1280×720, 1px = 0.75pt
 - [ ] presets: `editorial`, `glass`, `dawn`, `signal`
 - [ ] video export (15s loop, for social covers)
 - [x] HTML runtime (same shader, live in a browser)

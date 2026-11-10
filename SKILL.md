@@ -23,17 +23,38 @@ deck.json ──► WebGL (headless Chrome) ──► background.png ──► .
 
 ## Build a deck
 
-1. Write `deck.json`. One object per slide.
+1. Write `deck.json`. One object per slide. Canvas is **1280 × 720**, absolute
+   coordinates, 1 px = 0.75 pt.
 
 ```json
 {
   "preset": {"light": "#ffc98a", "origin": [0.55, 0.85], "dir": [-0.42, -1.0], "intensity": 1.0},
-  "style": {"font": "Songti SC", "titleColor": "FFFFFF", "subColor": "E8C9A8"},
   "slides": [
-    {"kicker": "01", "title": "标题即结论", "titleTop": 320, "sub": "副标题", "subTop": 470, "notes": "演讲备注"}
+    {
+      "time": 2.0,
+      "background": "#FCFBF9",
+      "notes": "演讲备注",
+      "elements": [
+        {"type": "text", "x": 72, "y": 44, "w": 600, "text": "§ 01 · 两种做法",
+         "sizePt": 10, "color": "#6B7078", "font": "Menlo", "spc": 0.42},
+        {"type": "rect", "x": 72, "y": 176, "w": 1136, "h": 1, "fill": "#D8DEE4"},
+        {"type": "text", "x": 72, "y": 96, "w": 900, "text": "标题即结论",
+         "sizePt": 40, "color": "#142B40", "font": "PingFang SC", "bold": true},
+        {"type": "image", "src": "assets/band.jpg", "x": 1100, "y": 0, "w": 108, "h": 658}
+      ]
+    }
   ]
 }
 ```
+
+| field | notes |
+|---|---|
+| `background` | omit → shader render. `"#FCFBF9"` → solid fill. `"bg.png"` → image |
+| `time` | shader time; change it and the dust moves |
+| `type: text` | `paragraphs[]` → `runs[]`; each run has `text/sizePt/color/font/bold/spc` |
+| `type: rect` | `fill` or `stroke:{color,widthPt}`; this is how hairlines are made |
+| `type: image` | `src` relative to the deck file |
+| legacy | `title`/`titleTop`/`sub`/`body` still work, auto-converted |
 
 2. Render:
 
@@ -43,11 +64,17 @@ python3 scripts/render.py deck.json --out out/deck.pptx
 
 3. Open the pptx. Background is a rendered image; **every text box is native** — edit it in PowerPoint like any other deck.
 
+`examples/precision/` is the reference: paper-white content pages, 72px margins,
+a 1px rule at `x = 656`, one accent per page.
+
 ## Rules that make it look good
 
 - **One light per deck.** Change `origin`/`dir` between sections, not between slides.
 - **Text never sits in the beam.** Put type on the dark side; the beam is the subject on the title slide, the frame on content slides.
 - **≤ 5 lines per slide.** The renderer gives you depth, not room.
+- **Don't put shader light under a text-heavy page.** A beam behind body copy is unreadable. Use a solid background on content slides and save the shader for the 1–2 stage pages.
+- **Margins are 72, structure lines are 1px.** Pick the numbers once and reuse them; that is what makes ten pages look like one deck.
+- **One accent per page.** The page says one thing, so exactly one thing is colored.
 - **Notes are mandatory.** A rendered deck without speaker notes is a poster.
 - **Check the output.** Always rasterize one slide (`soffice --headless --convert-to pdf`) and look at it before delivering.
 

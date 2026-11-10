@@ -1,0 +1,605 @@
+{
+  "_comment": "deck-shader / precision example — 画布 1280×720，所有坐标写死。",
+  "preset": {
+    "light": "#ffc98a",
+    "origin": [
+      0.55,
+      0.85
+    ],
+    "dir": [
+      -0.42,
+      -1.0
+    ],
+    "intensity": 1.0
+  },
+  "style": {
+    "font": "Songti SC"
+  },
+  "slides": [
+    {
+      "time": 2.0,
+      "notes": "开场不解释，让他们先看光。开口第一句从第二页开始。",
+      "elements": [
+        {
+          "type": "text",
+          "x": 72,
+          "y": 44,
+          "w": 500,
+          "text": "§ 00 · DECK-SHADER",
+          "sizePt": 10,
+          "color": "#8FA3B8",
+          "font": "Menlo",
+          "spc": 0.42
+        },
+        {
+          "type": "text",
+          "x": 780,
+          "y": 44,
+          "w": 428,
+          "text": "RENLAB · 2026",
+          "sizePt": 10,
+          "color": "#5E7186",
+          "font": "Menlo",
+          "align": "right"
+        },
+        {
+          "type": "rect",
+          "x": 72,
+          "y": 250,
+          "w": 44,
+          "h": 2,
+          "fill": "#FF8D78"
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 278,
+          "w": 760,
+          "text": "幻灯片的光\n是算出来的",
+          "sizePt": 92,
+          "color": "#FFFFFF",
+          "font": "Songti SC",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "x": 76,
+          "y": 520,
+          "w": 700,
+          "text": "每一条光都从一段 shader 里长出来，每个字都在写死的坐标上。",
+          "sizePt": 17,
+          "color": "#D5DEE8",
+          "font": "PingFang SC"
+        },
+        {
+          "type": "text",
+          "x": 1116,
+          "y": 660,
+          "w": 92,
+          "text": "00 / 04",
+          "sizePt": 10,
+          "color": "#5E7186",
+          "font": "Menlo",
+          "align": "right"
+        }
+      ]
+    },
+    {
+      "background": "#FCFBF9",
+      "notes": "这一页是全部的 argument：模板是选出来的，坐标是写出来的。",
+      "elements": [
+        {
+          "type": "text",
+          "x": 72,
+          "y": 44,
+          "w": 600,
+          "text": "§ 01 · 两种做法",
+          "sizePt": 10,
+          "color": "#6B7078",
+          "font": "Menlo",
+          "spc": 0.42
+        },
+        {
+          "type": "text",
+          "x": 640,
+          "y": 44,
+          "w": 568,
+          "text": "DECK-SHADER · renlab",
+          "sizePt": 10,
+          "color": "#9AA0A8",
+          "font": "Menlo",
+          "align": "right"
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 96,
+          "w": 900,
+          "text": "模板是选出来的，坐标是写出来的",
+          "sizePt": 40,
+          "color": "#142B40",
+          "font": "PingFang SC",
+          "bold": true
+        },
+        {
+          "type": "rect",
+          "x": 72,
+          "y": 176,
+          "w": 1136,
+          "h": 1,
+          "fill": "#D8DEE4"
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 208,
+          "w": 520,
+          "text": "用模板",
+          "sizePt": 11,
+          "color": "#8494A2",
+          "font": "Menlo",
+          "spc": 0.2
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 238,
+          "w": 520,
+          "h": 120,
+          "paragraphs": [
+            {
+              "align": "left",
+              "lineSpacingPct": 170,
+              "runs": [
+                {
+                  "text": "你在一个已经画好的框里塞字，框决定字。",
+                  "sizePt": 17,
+                  "color": "#44586B",
+                  "font": "PingFang SC"
+                }
+              ]
+            },
+            {
+              "align": "left",
+              "lineSpacingPct": 170,
+              "runs": [
+                {
+                  "text": "十页共用一套骨架，所以十页看起来是同一页。",
+                  "sizePt": 17,
+                  "color": "#44586B",
+                  "font": "PingFang SC"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rect",
+          "x": 656,
+          "y": 208,
+          "w": 1,
+          "h": 116,
+          "fill": "#D8DEE4"
+        },
+        {
+          "type": "text",
+          "x": 704,
+          "y": 208,
+          "w": 504,
+          "text": "用代码",
+          "sizePt": 11,
+          "color": "#0F4C81",
+          "font": "Menlo",
+          "spc": 0.2
+        },
+        {
+          "type": "text",
+          "x": 704,
+          "y": 238,
+          "w": 504,
+          "h": 120,
+          "paragraphs": [
+            {
+              "align": "left",
+              "lineSpacingPct": 170,
+              "runs": [
+                {
+                  "text": "每一页只描述它自己要说的那件事，数字和留白都是量好的。",
+                  "sizePt": 17,
+                  "color": "#142B40",
+                  "font": "PingFang SC"
+                }
+              ]
+            },
+            {
+              "align": "left",
+              "lineSpacingPct": 170,
+              "runs": [
+                {
+                  "text": "所以一页能比另一页更响。",
+                  "sizePt": 17,
+                  "color": "#142B40",
+                  "font": "PingFang SC"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rect",
+          "x": 72,
+          "y": 470,
+          "w": 1136,
+          "h": 1,
+          "fill": "#D8DEE4"
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 496,
+          "w": 1136,
+          "paragraphs": [
+            {
+              "align": "left",
+              "runs": [
+                {
+                  "text": "所以这页的分栏在 656，不是 640——",
+                  "sizePt": 17,
+                  "color": "#44586B",
+                  "font": "PingFang SC"
+                },
+                {
+                  "text": "左边是判断，右边是依据，两边的字数不一样多。",
+                  "sizePt": 17,
+                  "color": "#B42318",
+                  "font": "PingFang SC",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 650,
+          "w": 400,
+          "text": "MINDCAST · renlab",
+          "sizePt": 10,
+          "color": "#9AA0A8",
+          "font": "Menlo"
+        },
+        {
+          "type": "text",
+          "x": 808,
+          "y": 650,
+          "w": 400,
+          "text": "01 / 04",
+          "sizePt": 10,
+          "color": "#9AA0A8",
+          "font": "Menlo",
+          "align": "right"
+        }
+      ]
+    },
+    {
+      "background": "#FCFBF9",
+      "notes": "页面上不发明新色，也不发明新的线宽。给三个数，然后停。",
+      "elements": [
+        {
+          "type": "text",
+          "x": 72,
+          "y": 44,
+          "w": 600,
+          "text": "§ 02 · 一页里有几个数",
+          "sizePt": 10,
+          "color": "#6B7078",
+          "font": "Menlo",
+          "spc": 0.42
+        },
+        {
+          "type": "text",
+          "x": 640,
+          "y": 44,
+          "w": 568,
+          "text": "DECK-SHADER · renlab",
+          "sizePt": 10,
+          "color": "#9AA0A8",
+          "font": "Menlo",
+          "align": "right"
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 96,
+          "w": 900,
+          "text": "真正决定质感的，只有三个数",
+          "sizePt": 40,
+          "color": "#142B40",
+          "font": "PingFang SC",
+          "bold": true
+        },
+        {
+          "type": "rect",
+          "x": 72,
+          "y": 176,
+          "w": 1136,
+          "h": 1,
+          "fill": "#D8DEE4"
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 214,
+          "w": 340,
+          "text": "72",
+          "sizePt": 96,
+          "color": "#0F4C81",
+          "font": "Menlo",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 330,
+          "w": 340,
+          "text": "边距",
+          "sizePt": 20,
+          "color": "#142B40",
+          "font": "PingFang SC",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 362,
+          "w": 340,
+          "paragraphs": [
+            {
+              "align": "left",
+              "lineSpacingPct": 165,
+              "runs": [
+                {
+                  "text": "四边留 72。不是大概 70，是 72。\n同一页的两条竖线，永远落在同一个 x。",
+                  "sizePt": 15,
+                  "color": "#44586B",
+                  "font": "PingFang SC"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "x": 468,
+          "y": 214,
+          "w": 340,
+          "text": "1",
+          "sizePt": 96,
+          "color": "#0F4C81",
+          "font": "Menlo",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "x": 468,
+          "y": 330,
+          "w": 340,
+          "text": "发丝线",
+          "sizePt": 20,
+          "color": "#142B40",
+          "font": "PingFang SC",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "x": 468,
+          "y": 362,
+          "w": 340,
+          "paragraphs": [
+            {
+              "align": "left",
+              "lineSpacingPct": 165,
+              "runs": [
+                {
+                  "text": "结构线一律 1px。粗细是零信息，\n它只是分隔，不该抢任何注意力。",
+                  "sizePt": 15,
+                  "color": "#44586B",
+                  "font": "PingFang SC"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "x": 864,
+          "y": 214,
+          "w": 344,
+          "text": "1",
+          "sizePt": 96,
+          "color": "#B42318",
+          "font": "Menlo",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "x": 864,
+          "y": 330,
+          "w": 344,
+          "text": "每页一处点睛",
+          "sizePt": 20,
+          "color": "#142B40",
+          "font": "PingFang SC",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "x": 864,
+          "y": 362,
+          "w": 344,
+          "paragraphs": [
+            {
+              "align": "left",
+              "lineSpacingPct": 165,
+              "runs": [
+                {
+                  "text": "一页只说一件事，所以只染一个字。\n染第二处，就等于什么都没染。",
+                  "sizePt": 15,
+                  "color": "#44586B",
+                  "font": "PingFang SC"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rect",
+          "x": 72,
+          "y": 470,
+          "w": 1136,
+          "h": 1,
+          "fill": "#D8DEE4"
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 496,
+          "w": 1136,
+          "paragraphs": [
+            {
+              "align": "left",
+              "runs": [
+                {
+                  "text": "这三个数是写死的，不是调出来的。",
+                  "sizePt": 18,
+                  "color": "#142B40",
+                  "font": "PingFang SC",
+                  "bold": true
+                },
+                {
+                  "text": "   写死的，才能一册十页长一个样。",
+                  "sizePt": 18,
+                  "color": "#8494A2",
+                  "font": "PingFang SC"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 650,
+          "w": 400,
+          "text": "MINDCAST · renlab",
+          "sizePt": 10,
+          "color": "#9AA0A8",
+          "font": "Menlo"
+        },
+        {
+          "type": "text",
+          "x": 808,
+          "y": 650,
+          "w": 400,
+          "text": "02 / 04",
+          "sizePt": 10,
+          "color": "#9AA0A8",
+          "font": "Menlo",
+          "align": "right"
+        }
+      ]
+    },
+    {
+      "time": 6.5,
+      "notes": "最后一页只留一句话和一个地址。说完就停，不要补。",
+      "elements": [
+        {
+          "type": "text",
+          "x": 72,
+          "y": 44,
+          "w": 500,
+          "text": "§ 03 · 结束",
+          "sizePt": 10,
+          "color": "#8FA3B8",
+          "font": "Menlo",
+          "spc": 0.42
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 268,
+          "w": 820,
+          "paragraphs": [
+            {
+              "align": "left",
+              "lineSpacingPct": 118,
+              "runs": [
+                {
+                  "text": "一页幻灯片能被记住，\n",
+                  "sizePt": 62,
+                  "color": "#FFFFFF",
+                  "font": "Songti SC",
+                  "bold": true
+                },
+                {
+                  "text": "是因为有个地方",
+                  "sizePt": 62,
+                  "color": "#FFFFFF",
+                  "font": "Songti SC",
+                  "bold": true
+                },
+                {
+                  "text": "亮着",
+                  "sizePt": 62,
+                  "color": "#FF8D78",
+                  "font": "Songti SC",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rect",
+          "x": 72,
+          "y": 556,
+          "w": 72,
+          "h": 2,
+          "fill": "#FF8D78"
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 584,
+          "w": 700,
+          "text": "deck-shader · MIT · 一份 JSON 换一册幻灯片",
+          "sizePt": 16,
+          "color": "#B8C4D0",
+          "font": "Menlo"
+        },
+        {
+          "type": "text",
+          "x": 72,
+          "y": 614,
+          "w": 700,
+          "text": "github.com/anzy-renlab-ai/deck-shader",
+          "sizePt": 16,
+          "color": "#FF8D78",
+          "font": "Menlo"
+        },
+        {
+          "type": "text",
+          "x": 1116,
+          "y": 660,
+          "w": 92,
+          "text": "03 / 04",
+          "sizePt": 10,
+          "color": "#5E7186",
+          "font": "Menlo",
+          "align": "right"
+        }
+      ]
+    }
+  ]
+}
