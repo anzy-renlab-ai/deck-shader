@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/cover.png" width="880">
+<img src="docs/loop.gif" width="880" alt="deck-shader: a volumetric light beam rendered by a fragment shader, under editable slide text">
 
 # deck-shader
 
@@ -9,6 +9,8 @@
 Write a JSON file. A shader renders the light — volumetric beams, caustics, drifting dust — and you get a `.pptx` where the text is still editable.
 
 `python3 scripts/render.py examples/hello/deck.json`
+
+<sub>A 6-second render from `examples/hello`. The text is native PowerPoint text; only the light is baked.</sub>
 
 </div>
 

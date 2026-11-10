@@ -39,22 +39,24 @@ vec3 beamAt(vec2 st,float T,float bloom){
 }
 void main(){
   vec2 st=(gl_FragCoord.xy-0.5*R)/R.y;
-  vec3 col=vec3(0.018,0.025,0.042);
   vec3 air=beamAt(st,T,1.0);
-  col+=LIGHT*air*INT;
-  col+=vec3(0.25,0.40,0.75)*air*0.08;
+  vec3 airCol=vec3(0.018,0.025,0.042)+LIGHT*air*INT+vec3(0.25,0.40,0.75)*air*0.08;
+
   float horizon=-0.17;
-  if(st.y<horizon){
-    float k=horizon-st.y;
-    vec2 mir=vec2(st.x,horizon+k);
-    float rip=fbm(vec2(st.x*3.0,k*9.0-T*0.25));
-    mir.x+=(rip-0.5)*0.10*smoothstep(0.0,0.5,k);
-    vec3 refl=beamAt(mir,T*0.5,0.7)*0.55;
-    float cau=fbm(vec2(st.x*4.0,k*14.0+T*0.06)); cau=cau*cau*cau;
-    col=mix(vec3(0.010,0.014,0.024),vec3(0.018,0.026,0.045),smoothstep(0.0,0.6,k));
-    col+=LIGHT*refl*smoothstep(0.0,0.35,k);
-    col+=LIGHT*cau*0.30*smoothstep(0.0,0.5,k);
-  }
+  float k=max(horizon-st.y,0.0);
+  vec2 mir=vec2(st.x,horizon+k);
+  float rip=fbm(vec2(st.x*3.0,k*9.0-T*0.25));
+  mir.x+=(rip-0.5)*0.10*smoothstep(0.0,0.5,k);
+  vec3 refl=beamAt(mir,T*0.5,0.7)*0.55;
+  float cau=fbm(vec2(st.x*4.0,k*14.0+T*0.06)); cau=cau*cau*cau;
+  vec3 floorCol=vec3(0.012,0.016,0.027)
+      +LIGHT*refl*0.95
+      +LIGHT*cau*0.22
+      +vec3(0.030,0.026,0.022)*exp(-k*3.0);
+
+  float m=smoothstep(horizon+0.035,horizon-0.035,st.y);
+  vec3 col=mix(airCol,floorCol,m);
+
   float dust=0.0;
   for(int i=0;i<4;i++){
     float fi=float(i);
@@ -66,8 +68,8 @@ void main(){
       dust+=smoothstep(rad,0.0,length(f))*smoothstep(0.955,1.0,rnd)*(0.55+0.45*sin(T*1.3+rnd*30.0));
     }
   }
-  col+=vec3(1.0,0.90,0.74)*dust*0.40*smoothstep(1.1,-0.1,length(st-ORIGIN));
-  col+=vec3(0.10,0.08,0.06)*exp(-((st.y-horizon)*9.0)*((st.y-horizon)*9.0))*0.55;
+  col+=vec3(1.0,0.90,0.74)*dust*0.36*smoothstep(1.1,-0.1,length(st-ORIGIN));
+  col+=vec3(0.12,0.09,0.06)*exp(-((st.y-horizon)*14.0)*((st.y-horizon)*14.0))*0.35;
   col*=1.0-0.60*smoothstep(0.12,-0.62,st.y);
   col*=1.0-0.60*length(st*vec2(0.50,0.78));
   col+=(h(gl_FragCoord.xy+T*11.0)-0.5)*0.010;
