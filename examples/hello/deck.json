@@ -1,0 +1,10 @@
+{
+  "preset": {"light": "#ffc98a", "angle": [0.5, -1.0], "intensity": 1.0},
+  "style": {"font": "Songti SC", "titleColor": "FFFFFF", "subColor": "E8C9A8", "bodyColor": "EDE3D6"},
+  "slides": [
+    {"kicker": "DECK · SHADER", "title": "光线是可以计算的", "titleTop": 330, "sub": "把 PPT 的背景交给 WebGL", "subTop": 470, "time": 1.0},
+    {"kicker": "01 · 为什么", "title": "PPT 的光影，\n一直是画出来的", "titleTop": 300, "sub": "贴图、渐变、阴影——全是近似的", "subTop": 520, "time": 3.0,
+     "notes": "这一页讲传统 PPT 的光影都是贴图，不是算出来的。"},
+    {"kicker": "02 · 怎么做", "title": "交给 shader", "titleTop": 320, "body": "体积光、焦散、浮尘，\n每个像素都由公式算出来。\n\n同一份 JSON，换一个参数，\n就是另一套光。", "bodyTop": 460, "time": 5.0}
+  ]
+}

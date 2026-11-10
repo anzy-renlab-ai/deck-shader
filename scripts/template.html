@@ -1,0 +1,100 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:#05070d;overflow:hidden;width:1920px;height:1080px}
+canvas{position:absolute;inset:0;width:1920px;height:1080px}
+.layer{position:absolute;inset:0;color:#fff;font-family:"Songti SC","Noto Serif SC",serif}
+.kicker{position:absolute;left:120px;font-family:"Helvetica Neue",sans-serif;font-size:15px;letter-spacing:.42em;color:rgba(255,225,190,.55)}
+.rule{position:absolute;left:120px;width:70px;height:2px;background:linear-gradient(90deg,rgba(255,196,130,.95),rgba(255,196,130,0));box-shadow:0 0 20px rgba(255,170,90,.85)}
+.title{position:absolute;left:120px;font-size:88px;line-height:1.16;margin:0;font-weight:600;letter-spacing:.01em;text-shadow:0 0 70px rgba(255,180,110,.20)}
+.sub{position:absolute;left:124px;font-size:25px;letter-spacing:.18em;color:rgba(255,236,214,.55)}
+.body{position:absolute;left:120px;width:780px;font-size:27px;line-height:1.9;color:rgba(255,244,232,.80)}
+.foot{position:absolute;left:120px;bottom:66px;font-family:"Helvetica Neue",sans-serif;font-size:14px;letter-spacing:.3em;color:rgba(255,220,190,.32)}
+.num{position:absolute;right:120px;bottom:58px;font-family:"Helvetica Neue",sans-serif;font-size:15px;letter-spacing:.2em;color:rgba(255,220,190,.42)}
+</style></head><body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<div class="layer" id="layer"></div>
+<script>
+const CFG = __CFG__;
+const c=document.getElementById('c'),gl=c.getContext('webgl',{preserveDrawingBuffer:true});
+const VS="attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+const FS=`
+precision highp float;
+uniform vec2 R; uniform float T;
+uniform vec3 LIGHT; uniform vec2 ORIGIN; uniform vec2 DIR; uniform float INT;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+ return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p*=2.03;a*=.5;}return v;}
+vec3 beamAt(vec2 st,float T,float bloom){
+  vec2 dir=normalize(DIR); vec2 nor=vec2(-dir.y,dir.x);
+  float along=dot(st-ORIGIN,dir);
+  float d=dot(st-ORIGIN,nor);
+  d+=0.010*sin(along*3.1+T*0.4)+0.006*sin(along*7.7-T*0.23);
+  float core=exp(-(d*70.0)*(d*70.0));
+  float body=exp(-(d*10.0)*(d*10.0));
+  float halo=exp(-(d*2.5)*(d*2.5));
+  float taper=smoothstep(-0.45,0.70,along)*smoothstep(1.85,0.95,along);
+  float stri=0.55+0.65*fbm(vec2(d*22.0,along*3.4-T*0.05));
+  stri*=0.72+0.42*fbm(vec2(d*6.0+3.0,along*1.1-T*0.02));
+  return vec3(core*1.9+body*0.95+halo*0.24*bloom)*stri*taper;
+}
+void main(){
+  vec2 st=(gl_FragCoord.xy-0.5*R)/R.y;
+  vec3 col=vec3(0.018,0.025,0.042);
+  vec3 air=beamAt(st,T,1.0);
+  col+=LIGHT*air*INT;
+  col+=vec3(0.25,0.40,0.75)*air*0.08;
+  float horizon=-0.17;
+  if(st.y<horizon){
+    float k=horizon-st.y;
+    vec2 mir=vec2(st.x,horizon+k);
+    float rip=fbm(vec2(st.x*3.0,k*9.0-T*0.25));
+    mir.x+=(rip-0.5)*0.10*smoothstep(0.0,0.5,k);
+    vec3 refl=beamAt(mir,T*0.5,0.7)*0.55;
+    float cau=fbm(vec2(st.x*4.0,k*14.0+T*0.06)); cau=cau*cau*cau;
+    col=mix(vec3(0.010,0.014,0.024),vec3(0.018,0.026,0.045),smoothstep(0.0,0.6,k));
+    col+=LIGHT*refl*smoothstep(0.0,0.35,k);
+    col+=LIGHT*cau*0.30*smoothstep(0.0,0.5,k);
+  }
+  float dust=0.0;
+  for(int i=0;i<4;i++){
+    float fi=float(i);
+    vec2 g=st*vec2(16.0+fi*7.0,16.0+fi*7.0)+vec2(fi*13.0,fi*7.0)+vec2(0.,-T*0.035*(1.+fi*0.4));
+    vec2 id=floor(g); vec2 f=fract(g)-0.5;
+    float rnd=h(id);
+    if(rnd>0.955){
+      float rad=0.10+0.16*fract(rnd*37.0);
+      dust+=smoothstep(rad,0.0,length(f))*smoothstep(0.955,1.0,rnd)*(0.55+0.45*sin(T*1.3+rnd*30.0));
+    }
+  }
+  col+=vec3(1.0,0.90,0.74)*dust*0.40*smoothstep(1.1,-0.1,length(st-ORIGIN));
+  col+=vec3(0.10,0.08,0.06)*exp(-((st.y-horizon)*9.0)*((st.y-horizon)*9.0))*0.55;
+  col*=1.0-0.60*smoothstep(0.12,-0.62,st.y);
+  col*=1.0-0.60*length(st*vec2(0.50,0.78));
+  col+=(h(gl_FragCoord.xy+T*11.0)-0.5)*0.010;
+  gl_FragColor=vec4(pow(max(col,0.0),vec3(0.92)),1.0);
+}`;
+function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))document.title='ERR '+gl.getShaderInfoLog(o);return o;}
+const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);gl.useProgram(pr);
+const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+const loc=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+const P=CFG.preset||{};
+const rgb=x=>{const m=x.replace('#','');return [parseInt(m.slice(0,2),16)/255,parseInt(m.slice(2,4),16)/255,parseInt(m.slice(4,6),16)/255];};
+gl.uniform2f(gl.getUniformLocation(pr,'R'),1920,1080);
+gl.uniform1f(gl.getUniformLocation(pr,'T'),CFG.time||0);
+gl.uniform3fv(gl.getUniformLocation(pr,'LIGHT'),rgb(P.light||'#ffc98a'));
+gl.uniform2fv(gl.getUniformLocation(pr,'ORIGIN'),new Float32Array(P.origin||[0.55,0.85]));
+gl.uniform2fv(gl.getUniformLocation(pr,'DIR'),new Float32Array(P.dir||[-0.42,-1.0]));
+gl.uniform1f(gl.getUniformLocation(pr,'INT'),P.intensity==null?1:P.intensity);
+gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+const el=document.getElementById('layer');
+const esc=s=>String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+let html='';
+if(CFG.kicker)html+=`<div class="kicker" style="top:${CFG.kickerTop||96}px">${esc(CFG.kicker)}</div>`;
+if(CFG.title)html+=`<div class="rule" style="top:${CFG.titleTop-38}px"></div><h1 class="title" style="top:${CFG.titleTop}px">${esc(CFG.title).replace(/\n/g,'<br>')}</h1>`;
+if(CFG.sub)html+=`<div class="sub" style="top:${CFG.subTop}px">${esc(CFG.sub)}</div>`;
+if(CFG.body)html+=`<div class="body" style="top:${CFG.bodyTop}px">${CFG.body.split('\n').map(l=>`<div>${esc(l)}</div>`).join('')}</div>`;
+if(CFG.foot)html+=`<div class="foot">${esc(CFG.foot)}</div>`;
+if(CFG.num)html+=`<div class="num">${esc(CFG.num)}</div>`;
+el.innerHTML=html;
+document.title='READY';
+</script></body></html>
