@@ -131,6 +131,21 @@ def test_legacy_slides_skip_element_validation(tmp_path):
     assert cli._load_deck(p)["slides"]
 
 
+def _slide():
+    from pptx import Presentation
+    prs = Presentation()
+    return prs.slides.add_slide(prs.slide_layouts[6])
+
+
+def test_run_without_styling_inherits_from_element():
+    el = {"type": "text", "x": 0, "y": 0, "w": 400, "sizePt": 28, "color": "#FF0000",
+          "paragraphs": [{"runs": [{"text": "只有文字"}]}]}
+    cli._add_text(_slide(), el)
+    el = {"type": "text", "x": 0, "y": 0, "w": 400,
+          "paragraphs": [{"runs": [{"text": "只有文字"}]}]}
+    cli._add_text(_slide(), el)          # 不该 KeyError
+
+
 def test_cache_key_changes_with_quality_and_config(tmp_path):
     cfg = {"preset": {"light": "#ffffff"}, "time": 0}
     out = tmp_path / "bg.jpg"

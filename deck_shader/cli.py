@@ -235,7 +235,13 @@ def _add_text(slide, el):
         for rs in p.get("runs", []):
             run = para.add_run()
             run.text = rs.get("text", "")
-            _style_run(run, rs)
+            # 一个 run 只写 text 是常态；字号/颜色/字体从元素上继承，
+            # 不该因为少写一个 sizePt 就 KeyError 崩在这里。
+            spec = {"sizePt": el.get("sizePt", 20),
+                    "color": el.get("color", "#142B40"),
+                    "font": el.get("font", "PingFang SC"),
+                    **rs}
+            _style_run(run, spec)
 
 
 def _add_rect(slide, el):
