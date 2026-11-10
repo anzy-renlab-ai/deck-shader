@@ -10,6 +10,9 @@ Write a JSON file. A shader renders the light — volumetric beams, caustics, dr
 
 `python3 scripts/render.py examples/hello/deck.json`
 
+[![PyPI](https://img.shields.io/pypi/v/deck-shader.svg)](https://pypi.org/project/deck-shader/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-b7b7b7.svg)](LICENSE)
+
 <a href="https://anzy-renlab-ai.github.io/deck-shader/"><b>▶ Try it live in the browser — no install</b></a>
 
 <sub>A 6-second render from `examples/hello`. The text is native PowerPoint text; only the light is baked.</sub>
@@ -87,7 +90,7 @@ It ships with a `SKILL.md`, so Claude Code, WorkBuddy, or any host that reads sk
 ## Quickstart
 
 ```bash
-pip install git+https://github.com/anzy-renlab-ai/deck-shader
+pip install deck-shader
 deck-shader deck.json --out out/deck.pptx
 ```
 
@@ -185,9 +188,22 @@ This is the missing layer: a renderer, not a template.
 - [x] HTML runtime (same shader, live in a browser)
 - [ ] paper mode: arXiv PDF → deck outline → rendered deck
 
-## Works as an agent skill
+## Works with any agent
 
-`SKILL.md` is included. Drop the folder into `~/.claude/skills/` (Claude Code), `~/.workbuddy/skills/` (WorkBuddy), or any host that reads `SKILL.md`, and the agent can render decks directly.
+Not tied to one host. `AGENTS.md` is the entry point for anything that reads it
+(Codex, Cursor, Amp, Jules, …); `SKILL.md` is the entry point for skill-based
+hosts (Claude Code, WorkBuddy, …).
+
+| host | how |
+|---|---|
+| any agent | `pip install deck-shader`, then point it at `AGENTS.md` |
+| Claude Code | `git clone` into `~/.claude/skills/deck-shader` |
+| WorkBuddy / CodeBuddy | `git clone` into `~/.workbuddy/skills/deck-shader` |
+| Codex / Cursor / Amp | copy `AGENTS.md` into the project, or `pip install deck-shader` and let it read the repo |
+| no agent at all | `deck-shader deck.json` and edit the pptx by hand |
+
+The reason this ports cleanly: there is no proprietary API and no state. The
+contract is a JSON file in, a file on disk out.
 
 ## License
 
