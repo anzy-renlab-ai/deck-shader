@@ -11,6 +11,7 @@ Write a JSON file. A shader renders the light — volumetric beams, caustics, dr
 `python3 scripts/render.py examples/hello/deck.json`
 
 [![PyPI](https://img.shields.io/pypi/v/deck-shader.svg)](https://pypi.org/project/deck-shader/)
+[![test](https://github.com/anzy-renlab-ai/deck-shader/actions/workflows/test.yml/badge.svg)](https://github.com/anzy-renlab-ai/deck-shader/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-b7b7b7.svg)](LICENSE)
 
 <a href="https://anzy-renlab-ai.github.io/deck-shader/"><b>▶ Try it live in the browser — no install</b></a>
@@ -84,8 +85,11 @@ It ships with a `SKILL.md`, so Claude Code, WorkBuddy, or any host that reads sk
 | | |
 |---|---|
 | `.pptx` | 13.33 × 7.5 in, background is a rendered image, **all text is native and editable** |
-| `.png` | 1920 × 1080 background plates, if you want to compose in Figma or Keynote |
+| `.jpg` | 1920 × 1080 background plates, ~150 KB each (`--png` for lossless, ~1.7 MB) |
 | `notes` | per-slide speaker notes, written straight into the pptx |
+
+A four-slide deck comes out at **0.3 MB**. The whole deck is a few hundred kilobytes
+because the light is a few dozen numbers, not a photograph.
 
 ## Quickstart
 
@@ -102,7 +106,13 @@ pip install python-pptx
 python3 scripts/render.py examples/hello/deck.json --out out/hello.pptx
 ```
 
-Requires Chrome (headless, for the WebGL pass). macOS path is auto-detected; override with `CHROME=/path/to/chrome`.
+Requires Chrome (headless, for the WebGL pass). macOS path is auto-detected; override with `CHROME=/path/to/chrome`. No GPU needed — it falls back to SwiftShader.
+
+It also refuses to fail quietly. A missing file, broken JSON, an unknown preset,
+`--pages 9` on a four-page deck, a missing image, or a Chrome that handed back a
+flat black frame each exits with a message that names the problem instead of
+writing a deck that looks fine until you open it. `tests/` renders a real deck on
+every push (see the badge above).
 
 ## A slide is a list of elements at exact coordinates
 
@@ -166,7 +176,31 @@ whether a page can be louder than the page before it.
 | `preset.origin` | where the beam enters, in normalized stage coords |
 | `preset.dir` | beam direction |
 | `preset.intensity` | how hard it hits |
+| `preset.width` | beam thickness — 0.5 is a laser, 2.0 is a window |
+| `preset.haze` | dust in the air; 0 is a black studio, 1 is a foggy room |
+| `preset.floor` | how much the light bounces off the floor |
+| `preset.horizon` | where the floor starts, −0.5 low and wide, 0.2 tight |
+| `preset.grain` | film grain; drop it to 0 and the background compresses smaller |
 | `time` | shader time; change it and the dust moves, the beam breathes |
+
+## Presets
+
+Five shipped, and they are physics — not five color swatches. `width` changes the
+falloff of all three gaussian layers, `haze` lifts the air near the source, `floor`
+changes how much of the beam is reflected back up.
+
+<img src="docs/presets.png" width="880" alt="Five presets: cinematic, editorial, signal, glass, dawn — each a different beam width, haze and floor">
+
+| preset | light | what it is |
+|---|---|---|
+| `cinematic` | `#ffc98a` | warm key, narrow beam, black room |
+| `editorial` | `#e8e2d6` | a wide window of cold daylight, high floor bounce |
+| `signal` | `#7fd1ff` | blue monitor glow, tight beam |
+| `glass` | `#bcd9ff` | thin bright filament inside a hazy room |
+| `dawn` | `#ffb08a` | low horizon, warm, the floor taking most of the light |
+
+`deck-shader deck.json --preset dawn` overrides whatever the JSON says, which is
+how you restyle a whole deck with one flag.
 
 ## Why this exists
 
@@ -183,9 +217,9 @@ This is the missing layer: a renderer, not a template.
 - [x] volumetric beam + floor caustics + dust, parameterized
 - [x] JSON → PNG → editable `.pptx`
 - [x] absolute element model: `text` / `rect` / `image` at 1280×720, 1px = 0.75pt
-- [ ] presets: `editorial`, `glass`, `dawn`, `signal`
-- [ ] video export (15s loop, for social covers)
+- [x] presets: `cinematic`, `editorial`, `signal`, `glass`, `dawn`
 - [x] HTML runtime (same shader, live in a browser)
+- [ ] video export (15s loop, for social covers)
 - [ ] paper mode: arXiv PDF → deck outline → rendered deck
 
 ## Works with any agent

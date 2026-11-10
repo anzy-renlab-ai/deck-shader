@@ -20,6 +20,11 @@ const FS=`
 precision highp float;
 uniform vec2 R; uniform float T;
 uniform vec3 LIGHT; uniform vec2 ORIGIN; uniform vec2 DIR; uniform float INT;
+uniform float WIDTH;   // 光束宽度倍数
+uniform float HAZE;    // 空气里的浮尘/散射
+uniform float FLOOR;   // 地面反射强度
+uniform float HORIZON; // 地平线位置
+uniform float GRAIN;   // 胶片颗粒
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
  return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
@@ -29,9 +34,10 @@ vec3 beamAt(vec2 st,float T,float bloom){
   float along=dot(st-ORIGIN,dir);
   float d=dot(st-ORIGIN,nor);
   d+=0.010*sin(along*3.1+T*0.4)+0.006*sin(along*7.7-T*0.23);
-  float core=exp(-(d*70.0)*(d*70.0));
-  float body=exp(-(d*10.0)*(d*10.0));
-  float halo=exp(-(d*2.5)*(d*2.5));
+  float k=1.0/max(WIDTH,0.05);
+  float core=exp(-(d*70.0*k)*(d*70.0*k));
+  float body=exp(-(d*10.0*k)*(d*10.0*k));
+  float halo=exp(-(d*2.5*k)*(d*2.5*k));
   float taper=smoothstep(-0.45,0.70,along)*smoothstep(1.85,0.95,along);
   float stri=0.55+0.65*fbm(vec2(d*22.0,along*3.4-T*0.05));
   stri*=0.72+0.42*fbm(vec2(d*6.0+3.0,along*1.1-T*0.02));
@@ -41,8 +47,10 @@ void main(){
   vec2 st=(gl_FragCoord.xy-0.5*R)/R.y;
   vec3 air=beamAt(st,T,1.0);
   vec3 airCol=vec3(0.018,0.025,0.042)+LIGHT*air*INT+vec3(0.25,0.40,0.75)*air*0.08;
+  // 空气里的浮尘：离光源越近越亮，让画面有「雾」而不是「黑」
+  airCol+=LIGHT*HAZE*0.07*(0.35+0.65*exp(-length(st-ORIGIN)*1.2));
 
-  float horizon=-0.17;
+  float horizon=HORIZON;
   float k=max(horizon-st.y,0.0);
   vec2 mir=vec2(st.x,horizon+k);
   float rip=fbm(vec2(st.x*3.0,k*9.0-T*0.25));
@@ -50,7 +58,7 @@ void main(){
   vec3 refl=beamAt(mir,T*0.5,0.7)*0.55;
   float cau=fbm(vec2(st.x*4.0,k*14.0+T*0.06)); cau=cau*cau*cau;
   vec3 floorCol=vec3(0.012,0.016,0.027)
-      +LIGHT*refl*0.95
+      +LIGHT*refl*FLOOR
       +LIGHT*cau*0.22
       +vec3(0.030,0.026,0.022)*exp(-k*3.0);
 
@@ -72,7 +80,7 @@ void main(){
   col+=vec3(0.12,0.09,0.06)*exp(-((st.y-horizon)*14.0)*((st.y-horizon)*14.0))*0.35;
   col*=1.0-0.60*smoothstep(0.12,-0.62,st.y);
   col*=1.0-0.60*length(st*vec2(0.50,0.78));
-  col+=(h(gl_FragCoord.xy+T*11.0)-0.5)*0.010;
+  col+=(h(gl_FragCoord.xy+T*11.0)-0.5)*GRAIN;
   gl_FragColor=vec4(pow(max(col,0.0),vec3(0.92)),1.0);
 }`;
 function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))document.title='ERR '+gl.getShaderInfoLog(o);return o;}
@@ -85,8 +93,14 @@ gl.uniform2f(gl.getUniformLocation(pr,'R'),1920,1080);
 gl.uniform1f(gl.getUniformLocation(pr,'T'),CFG.time||0);
 gl.uniform3fv(gl.getUniformLocation(pr,'LIGHT'),rgb(P.light||'#ffc98a'));
 gl.uniform2fv(gl.getUniformLocation(pr,'ORIGIN'),new Float32Array(P.origin||[0.55,0.85]));
-gl.uniform2fv(gl.getUniformLocation(pr,'DIR'),new Float32Array(P.dir||[-0.42,-1.0]));
+gl.uniform2fv(gl.getUniformLocation(pr,'DIR'),new Float32Array(P.dir||P.angle||[-0.42,-1.0]));
 gl.uniform1f(gl.getUniformLocation(pr,'INT'),P.intensity==null?1:P.intensity);
+const num=(v,d)=>v==null?d:+v;
+gl.uniform1f(gl.getUniformLocation(pr,'WIDTH'),num(P.width,1));
+gl.uniform1f(gl.getUniformLocation(pr,'HAZE'),num(P.haze,0));
+gl.uniform1f(gl.getUniformLocation(pr,'FLOOR'),num(P.floor,0.95));
+gl.uniform1f(gl.getUniformLocation(pr,'HORIZON'),num(P.horizon,-0.17));
+gl.uniform1f(gl.getUniformLocation(pr,'GRAIN'),num(P.grain,0.010));
 gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 const el=document.getElementById('layer');
 const esc=s=>String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));

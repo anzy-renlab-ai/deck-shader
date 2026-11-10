@@ -60,6 +60,11 @@ Canvas is **1280 × 720**. 1 px = 0.75 pt, 1 in = 96 px.
 Per slide: `background` (`"#FCFBF9"` solid, `"bg.png"` picture, omit → shader
 render), `time` (shader time), `notes`.
 
+`preset` fields: `light` `origin` `dir` `intensity` — plus `width` (beam
+thickness), `haze` (dust), `floor` (reflection), `horizon`, `grain`. Shipped
+presets: `cinematic`, `editorial`, `signal`, `glass`, `dawn`
+(`--preset <name>` overrides the JSON).
+
 `examples/precision/deck.json` is the reference. `examples/hello/` is the
 minimal one.
 

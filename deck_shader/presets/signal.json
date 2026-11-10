@@ -1,1 +1,11 @@
-{"light": "#7fd1ff", "origin": [0.30, 0.95], "dir": [-0.18, -1.0], "intensity": 1.15}
+{
+  "light": "#7fd1ff",
+  "origin": [0.30, 0.95],
+  "dir": [-0.18, -1.0],
+  "intensity": 1.15,
+  "width": 0.8,
+  "haze": 0.10,
+  "floor": 0.95,
+  "horizon": -0.17,
+  "grain": 0.008
+}
