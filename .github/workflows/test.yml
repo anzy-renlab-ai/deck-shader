@@ -11,12 +11,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python: ["3.9", "3.12"]
         include:
-          # ubuntu-latest (26.04) 已经不提供 3.9 的 action 二进制了
+          # ubuntu-latest 已经是 26.04，setup-python 在那上面没有 3.9 的二进制
           - os: ubuntu-22.04
             python: "3.9"
+          - os: ubuntu-latest
+            python: "3.12"
     steps:
       - uses: actions/checkout@v4
 
