@@ -11,6 +11,7 @@
   python3 render.py deck.json --preset cinematic
 """
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -105,7 +106,38 @@ def _to_jpeg(src_png, out_jpg, quality):
     return out_jpg
 
 
-def render_bg(cfg, out_img, quality=92):
+def _reject_blank(path):
+    if _looks_blank(path):
+        _die("背景是一张纯色图——WebGL 没跑起来，试试换一台机器或加 --use-angle=metal")
+
+
+CACHE_DIRNAME = ".deck-shader-cache"
+
+
+def _cache_file(cfg, out_img, quality):
+    """同一份配置 + 同一个 template 出来的必然是同一种光，存一次就够。
+
+    改一个数字重渲染时，没动过的页直接命中，十页 deck 只等一页。
+    """
+    tpl = (Path(__file__).parent / "template.html").read_bytes()
+    h = hashlib.sha1(json.dumps(cfg, sort_keys=True, ensure_ascii=False).encode("utf-8"))
+    h.update(tpl)
+    h.update(f"|q{quality}|{SW}x{SH}|{Path(out_img).suffix.lower()}".encode())
+    d = Path(out_img).parent / CACHE_DIRNAME
+    return d, d / f"{h.hexdigest()[:20]}{Path(out_img).suffix.lower()}"
+
+
+def _store_cache(src, cache_dir, cache_file):
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, cache_file)          # 并行渲染时不能留半个文件
+    except OSError:
+        pass                                  # 缓存坏了不该拖垮渲染
+
+
+def render_bg(cfg, out_img, quality=92, cache=True):
     """cfg = {preset, time}；只画 shader，不带任何文字。"""
     if not CHROME:
         sys.exit("找不到 Chrome，请设置 CHROME=/path/to/chrome")
@@ -115,6 +147,10 @@ def render_bg(cfg, out_img, quality=92):
     for k in ("kickerTop", "titleTop", "subTop", "bodyTop"):
         if k in cfg:
             cfg[k] = cfg[k] * SCALE
+    cache_dir, cache_file = _cache_file(cfg, out_img, quality)
+    if cache and cache_file.exists() and cache_file.stat().st_size > 0:
+        shutil.copyfile(cache_file, out_img)
+        return out_img
     html = tpl.replace("__CFG__", json.dumps(cfg, ensure_ascii=False))
     tmpdir = Path(tempfile.mkdtemp())
     tmp_html = tmpdir / "s.html"
@@ -123,13 +159,15 @@ def render_bg(cfg, out_img, quality=92):
     try:
         if not want_jpeg:
             _screenshot(tmp_html, out_img)
-            return out_img
-        tmp_png = tmpdir / "shot.png"
-        _screenshot(tmp_html, tmp_png)
-        if _looks_blank(tmp_png):
-            _die("背景是一张纯色图——WebGL 没跑起来，试试换一台机器或加 --use-angle=metal")
-        if _to_jpeg(tmp_png, out_img, quality) is None:
-            _screenshot(tmp_html, out_img)     # 没有 Pillow：交给 Chrome 写 JPEG
+            _reject_blank(out_img)
+        else:
+            tmp_png = tmpdir / "shot.png"
+            _screenshot(tmp_html, tmp_png)
+            _reject_blank(tmp_png)
+            if _to_jpeg(tmp_png, out_img, quality) is None:
+                _screenshot(tmp_html, out_img)     # 没有 Pillow：交给 Chrome 写 JPEG
+        if cache:
+            _store_cache(out_img, cache_dir, cache_file)
         return out_img
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -197,7 +235,13 @@ def _add_text(slide, el):
         for rs in p.get("runs", []):
             run = para.add_run()
             run.text = rs.get("text", "")
-            _style_run(run, rs)
+            # 一个 run 只写 text 是常态；字号/颜色/字体从元素上继承，
+            # 不该因为少写一个 sizePt 就 KeyError 崩在这里。
+            spec = {"sizePt": el.get("sizePt", 20),
+                    "color": el.get("color", "#142B40"),
+                    "font": el.get("font", "PingFang SC"),
+                    **rs}
+            _style_run(run, spec)
 
 
 def _add_rect(slide, el):
@@ -275,7 +319,7 @@ def _die(msg):
     sys.exit(f"deck-shader: {msg}")
 
 
-def render_backgrounds(deck, out, only=None, ext=".jpg", quality=92):
+def render_backgrounds(deck, out, only=None, ext=".jpg", quality=92, cache=True):
     """把所有需要的背景渲完（可并行），返回 {slide_index: path}。"""
     stem = str(Path(out).with_suffix(""))
     todo = [(i, s) for i, s in enumerate(deck["slides"])
@@ -290,13 +334,13 @@ def render_backgrounds(deck, out, only=None, ext=".jpg", quality=92):
                    "time": s.get("time", i * 1.7)}
             p = f"{stem}_bg{i}{ext}"
             paths[i] = p
-            futs[pool.submit(render_bg, cfg, p, quality)] = i
+            futs[pool.submit(render_bg, cfg, p, quality, cache)] = i
         for f, i in futs.items():
             f.result()          # 出错就在这里炸，别等到组装 pptx
     return paths
 
 
-def build_pptx(deck, out, only=None, ext=".jpg", quality=92):
+def build_pptx(deck, out, only=None, ext=".jpg", quality=92, cache=True):
     from pptx import Presentation
     from pptx.util import Inches
 
@@ -305,7 +349,7 @@ def build_pptx(deck, out, only=None, ext=".jpg", quality=92):
     prs.slide_height = Inches(SLIDE_H_IN)
     blank = prs.slide_layouts[6]
     base = deck.get("_base", ".")
-    bgs = render_backgrounds(deck, out, only, ext, quality)
+    bgs = render_backgrounds(deck, out, only, ext, quality, cache)
 
     for i, s in enumerate(deck["slides"]):
         if only and (i + 1) not in only:
@@ -349,9 +393,16 @@ def build_pptx(deck, out, only=None, ext=".jpg", quality=92):
 def _validate(deck, name):
     """写错的坐标不该等到 pptx 打开才发现——这里一次性说清楚是哪一页哪个元素。"""
     kinds = {"text", "rect", "image"}
+    for where, val in (("顶层", deck.get("preset")),):
+        if val is not None and not isinstance(val, (str, dict)):
+            _die(f"{name} {where}的 preset 要写成预设名（字符串）或参数对象，收到 {type(val).__name__}")
     for si, s in enumerate(deck["slides"], 1):
         if not isinstance(s, dict):
             _die(f"{name} 第 {si} 页不是一个对象（应该是 {{...}}）")
+        pv = s.get("preset")
+        if pv is not None and not isinstance(pv, (str, dict)):
+            _die(f"{name} 第 {si} 页的 preset 要写成预设名（字符串）或参数对象，"
+                 f"收到 {type(pv).__name__}")
         els = s.get("elements")
         if els is None:
             continue                      # 老格式，title/sub/body 那种
@@ -373,6 +424,30 @@ def _validate(deck, name):
                 _die(f"{where}（image）缺少 src")
             if kind == "text" and not el.get("paragraphs") and "text" not in el:
                 _die(f"{where}（text）既没有 text 也没有 paragraphs")
+            _warn_offstage(el, kind, where)
+
+
+def _warn_offstage(el, kind, where):
+    """整块跑到画布外面的文字，永远不会出现在观众眼里。
+
+    只有 text 才报：图片和矩形超出边界是正常出血，不算错。
+    """
+    if kind != "text":
+        return
+    x, y = el["x"], el["y"]
+    w = el.get("w") or 0
+    h = el.get("h") or 20
+    if x + w <= 0 or y + h <= 0 or x >= CW or y >= CH:
+        print(f"  ! {where}（text）整块在 {CW}×{CH} 画布外面，观众看不到它",
+              file=sys.stderr)
+
+
+def _preset_by_name(name, where=""):
+    pj = Path(__file__).parent / "presets" / f"{name}.json"
+    if not pj.exists():
+        have = ", ".join(sorted(p.stem for p in (Path(__file__).parent / "presets").glob("*.json")))
+        _die(f"{where+' 的' if where else ''}没有 preset：{name}（有：{have}）")
+    return json.loads(pj.read_text(encoding="utf-8"))
 
 
 def _load_deck(path, preset_override=None):
@@ -390,11 +465,15 @@ def _load_deck(path, preset_override=None):
     _validate(deck, path.name)
 
     if preset_override:
-        pj = Path(__file__).parent / "presets" / f"{preset_override}.json"
-        if not pj.exists():
-            have = ", ".join(sorted(p.stem for p in (Path(__file__).parent / "presets").glob("*.json")))
-            _die(f"没有 preset：{preset_override}（有：{have}）")
-        deck["preset"] = json.loads(pj.read_text(encoding="utf-8"))
+        deck["preset"] = _preset_by_name(preset_override)
+
+    # "preset": "glass" 这种写法也要认——否则字符串会被当成参数对象，
+    # shader 读不到任何一个字段，安安静静画出一张没调过的默认光。
+    if isinstance(deck.get("preset"), str):
+        deck["preset"] = _preset_by_name(deck["preset"])
+    for si, s in enumerate(deck["slides"], 1):
+        if isinstance(s, dict) and isinstance(s.get("preset"), str):
+            s["preset"] = _preset_by_name(s["preset"], where=f"第 {si} 页")
     return deck
 
 
@@ -411,6 +490,8 @@ def main():
     ap.add_argument("--png", action="store_true", help="背景存 PNG（无损，但一张 ~1.7 MB）")
     ap.add_argument("--quality", type=int, default=92, metavar="1-100",
                     help="JPEG 质量，默认 92")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="忽略背景缓存，全部重渲（改过 shader 但没改 template 时用）")
     ap.add_argument("--version", action="version", version=f"deck-shader {__version__}")
     args = ap.parse_args()
 
@@ -436,14 +517,15 @@ def main():
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 
     if args.png_only:
-        bgs = render_backgrounds(deck, args.out, only, ext, args.quality)
+        bgs = render_backgrounds(deck, args.out, only, ext, args.quality,
+                                 not args.no_cache)
         if not bgs:
             print("这个范围里没有需要渲染的页（都是纯色/图片背景）")
             return
         print("done:", len(bgs), "张背景 ->", ", ".join(bgs.values()))
         return
 
-    bgs = build_pptx(deck, args.out, only, ext, args.quality)
+    bgs = build_pptx(deck, args.out, only, ext, args.quality, not args.no_cache)
     mb = os.path.getsize(args.out) / 1e6
     print(f"done: {args.out} | {len(deck['slides'])} 页 | {len(bgs)} 张背景 | {mb:.1f} MB")
 

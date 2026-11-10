@@ -63,7 +63,8 @@ render), `time` (shader time), `notes`.
 `preset` fields: `light` `origin` `dir` `intensity` — plus `width` (beam
 thickness), `haze` (dust), `floor` (reflection), `horizon`, `grain`. Shipped
 presets: `cinematic`, `editorial`, `signal`, `glass`, `dawn`
-(`--preset <name>` overrides the JSON).
+(`--preset <name>` overrides the JSON). Instead of the object you may write
+`"preset": "glass"` — top-level or per slide.
 
 `examples/precision/deck.json` is the reference. `examples/hello/` is the
 minimal one.
@@ -90,3 +91,7 @@ minimal one.
 deck-shader deck.json --pages 1 --png-only     # background only, fast
 deck-shader deck.json --out out/deck.pptx
 ```
+
+Unchanged backgrounds are cached, so the change-one-number loop is ~0.1 s per
+run. If you edit `template.html` the cache invalidates itself; `--no-cache`
+forces a full re-render.

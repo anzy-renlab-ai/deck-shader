@@ -114,6 +114,14 @@ flat black frame each exits with a message that names the problem instead of
 writing a deck that looks fine until you open it. `tests/` renders a real deck on
 every push (see the badge above).
 
+## Editing a deck is fast
+
+Backgrounds are cached next to the output, keyed by the exact shader
+configuration *and* the shader source. Change one number on one slide and only
+that slide re-renders — the reference four-page deck goes from 2.9 s cold to
+0.1 s warm, and the cached plate is byte-identical to a fresh render. `--no-cache`
+forces a full pass.
+
 ## A slide is a list of elements at exact coordinates
 
 <img src="docs/precision-02.png" width="880" alt="A paper-white slide: kicker, title, two columns split by a 1px rule at x=656, one red sentence">
@@ -201,6 +209,10 @@ changes how much of the beam is reflected back up.
 
 `deck-shader deck.json --preset dawn` overrides whatever the JSON says, which is
 how you restyle a whole deck with one flag.
+
+Inside the JSON you can name a preset instead of spelling out the parameters —
+`"preset": "glass"` at the top of the file or on a single slide. Naming a preset
+that does not exist is an error, not a silent fallback to defaults.
 
 ## Why this exists
 

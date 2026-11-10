@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- `"preset": "glass"` — a preset can be named instead of spelled out, at the
+  top level or on one slide. A name that doesn't exist is an error; it used to
+  fall back to the default light without saying anything.
+- `preset` that isn't a name or an object is rejected with the page number.
+- `--png` runs the flat-frame check too. It was only run on the JPEG path, so
+  the lossless output could hand you a solid-colour slide.
+- Text placed entirely outside the 1280×720 canvas now warns. Images and rects
+  bleeding off the edge are still silent — that's a normal bleed.
+- A `run` with only `text` no longer crashes. Size, colour and font fall back to
+  the element's, then to the same defaults the shorthand `text` form uses.
+- Backgrounds are cached in `.deck-shader-cache/` next to the output, keyed on
+  the shader config plus a hash of `template.html`. Re-rendering a deck after
+  touching one slide is 0.1 s instead of 2.9 s, and the cached plate is
+  byte-identical to a fresh render. `--no-cache` re-renders everything.
+
 ## 0.2.0
 
 Backgrounds are now 11× smaller, presets are physical parameters instead of
