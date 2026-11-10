@@ -32,6 +32,50 @@ So: describe the slide in JSON, render the light with a fragment shader, and lay
 deck.json  ──►  WebGL shader  ──►  background.png  ──►  .pptx (editable text)
 ```
 
+## Why not just generate the background with a model
+
+Because you can't point at it.
+
+Ask a text-to-image model for "a warm beam of light cutting through a dark room" and you get something plausible. Ask it again and you get a different room. Change the color and the composition moves with it. There is no *"no, that beam, move it 40px left"* — there is only re-rolling and hoping.
+
+A shader is the same picture, but every property is a named number you can edit.
+
+| | text-to-image | this |
+|---|---|---|
+| change the light's position | re-roll, keep your fingers crossed | `"origin": [0.55, 0.85]` → `[0.42, 0.85]` |
+| run it twice | two different pictures | byte-identical |
+| brand color | drifts between generations | one hex, in one place |
+| the deck's 10 slides look related | if you're lucky | because they share a preset |
+| review a change | look at pixels | `git diff` |
+| who can fix it in six months | someone with the same model | anyone who can read JSON |
+| an agent can check its own work | no | re-render, assert the number |
+
+<img src="docs/aigc-vs-shader.png" width="880" alt="Top row: three text-to-image renders from one prompt — three different rooms. Bottom row: three shader renders with only origin.x changed — the same room, the beam moved">
+
+Top row: one prompt, three runs, three different rooms. Bottom row: one shader, one number changed, everything else identical. Nothing in the bottom row was re-rolled.
+
+The honest tradeoff: a shader cannot give you a photograph. It gives you light, atmosphere, and texture — procedural things. For a person, a product, a street, use a photo. This is the layer that decides whether the photo sits in a scene or on a slide.
+
+## Built for the one thing models are actually good at
+
+Ask a model to "design a beautiful slide" and you get an opinion. Ask it to make a number 8% bigger, or move a rule 40px left, or swap the light from `#ffc98a` to `#7fd1ff` — and it is flawless.
+
+Layout is a coordinate problem. Typography is a set of numbers. Light is math. All of it is expressible, all of it is checkable, none of it is a matter of taste once you've decided what the page says.
+
+So the deck is a file with pixel coordinates and a shader, and the model works the way it works best: edit → render → look → edit. Every change compiles into something you can see and `git diff`.
+
+```
+you:   把第 3 页的光往左挪一点，标题再小一号
+agent: [edits origin, sizePt] [renders] [opens the png]
+       origin x 0.55 → 0.42; title 40 → 36. beam now clears the text.
+```
+
+This is the part most "AI makes your slides" tools skip. They put the model in the role of *designer* — judgment, taste, one shot, no way to check. It is far better as a *craftsman*: exact, iterative, verifiable.
+
+The deck is a file. The renderer is a script. Nothing in the loop is un-inspectable.
+
+It ships with a `SKILL.md`, so Claude Code, WorkBuddy, or any host that reads skills can pick it up as-is.
+
 ## What you get
 
 | | |
